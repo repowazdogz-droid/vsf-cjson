@@ -1,0 +1,10 @@
+name = "cjson"
+version = "0.1.0"
+defaultTargets = ["cjson"]
+
+[[lean_lib]]
+name = "Cjson"
+
+[[lean_exe]]
+name = "cjson"
+root = "Main"

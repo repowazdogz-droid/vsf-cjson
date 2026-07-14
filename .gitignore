@@ -1,0 +1,5 @@
+lean/.lake/
+harness/JSONTestSuite/
+oracle/cjson_oracle
+*.olean
+__pycache__/

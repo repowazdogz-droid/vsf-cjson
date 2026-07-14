@@ -1,0 +1,19 @@
+  20000/120000 ...
+  40000/120000 ...
+  60000/120000 ...
+  80000/120000 ...
+  100000/120000 ...
+  120000/120000 ...
+
+=== 120000 inputs ===
+  AGREE                  116476
+  D-STR-1                2594
+  D-FMT                  408
+  D-STR-2                388
+  D-NUM                  133
+  UNKNOWN-unparseable    1
+
+UNKNOWN divergences: 1
+  UNKNOWN-unparseable  in=b'1e400030000000000000004]'
+      oracle[0]=b'null'
+      lean  [0]=b'1e400030000000000000004'
