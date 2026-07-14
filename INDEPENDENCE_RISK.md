@@ -103,3 +103,43 @@ parser carry it is assuming the conclusion.
 
 Option 3 is the only one that would recover the return-type technique without inverting the
 arrow, and it is not obviously cheaper than option 1.
+
+
+---
+
+## Risk 3 — string-body soundness: **NO RISK TAKEN** (architecture 1, no new definitions)
+
+`parseStrBody_sound` was proved on **2026-07-14** using allowed architecture 1: a specialised
+induction on the **input length**, plus branch equations about the **existing, released** parser
+(`psb_esc34 … psb_esc116`, all `rfl`; `psb_esc`; `psb_bad_esc`; and `parseStrBody_other`, which
+already existed in v1.0.1). Architecture 2 (a proof-only execution relation) was **not needed**.
+
+### Independence test, answered as required
+
+> **Does this definition merely describe an execution that already occurred?**
+> There is **no new definition**. Nothing was introduced except theorems *about* the released
+> `parseStrBody`. Every `psb_*` lemma is an equation the parser already satisfies definitionally.
+
+> **Is acceptance/value meaning still supplied by the independent grammar?**
+> Yes. The conclusion is `SChars p v` — the `SChars` relation in `Cjson/Spec/Grammar.lean`,
+> written from SPEC.md, unchanged, and never mentioning the parser. The escape table, the
+> four-valid-hex-digit requirement (D-STR-1), the surrogate-pairing rule and the
+> raw-byte/no-UTF-8-validation policy are all supplied by the grammar, not by the parser.
+
+> **Could a defective parser satisfy the relation while violating the grammar?**
+> No — that is precisely what the theorem forbids, and it is not vacuous: a parser that accepted
+> `"\uZZZZ"` (as **cJSON does**) could not satisfy it, because `SChars.uni` demands
+> `IsHex h₁ … IsHex h₄`. The proof genuinely uses `hex4_isHex` to discharge that. The theorem
+> would be **false of the C oracle**, which is the sharpest available evidence that it has content.
+
+> **Is the final implication still substantive rather than `rfl` or a projection?**
+> Substantive. The proof is ~200 lines and must construct a grammar derivation for every
+> accepting execution: it converts the parser's boolean `isLowSur`/`isHighSur` tests into the
+> grammar's *numeric* surrogate ranges (`isHigh_range`, `isLow_range`, `not_surrogate`), converts
+> `hex4`'s `Option` into the grammar's `IsHex` + `hex4v` (`hex4_isHex`), and identifies the
+> parser's `utf8Enc` with the grammar's independently-defined `enc` (`enc_eq`). None of these is
+> `rfl` at the level that matters, and none of them was placed in the parser.
+
+**Verdict: the parser → grammar → theorem separation is intact. No parser definition was
+changed; no grammar definition was changed.** `Risk 2` (carrying the witness in the parser's
+return type) remains **rejected and unused** — and is now also **unnecessary for strings**.

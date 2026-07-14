@@ -1,5 +1,11 @@
 # BLOCKER.md — string-body soundness
 
+## STATUS: **RESOLVED 2026-07-14.** `parseStrBody_sound` is proved.
+
+The blocker below is retained verbatim as the historical record, followed by how it was cleared.
+
+---
+
 Branch: `gap2-adequacy-proof`. Raised per the failure policy. Not worked around.
 
 ## Exact goal
@@ -64,3 +70,52 @@ mechanical case blocks. No new mathematics. No new lemmas.
 Not a defect in the theorem, the grammar, or the parser. A tooling/effort obstacle, recorded
 rather than worked around. Number soundness (the piece the research phase identified as *the*
 hard part) is **proved**; this one is *long*.
+
+
+---
+
+# RESOLUTION (2026-07-14)
+
+## What was proved
+
+```lean
+theorem parseStrBody_sound : ∀ (n : Nat) (s : Bytes) (v r : Bytes), s.length ≤ n →
+    parseStrBody s = some (v, r) → ∃ p, s = p ++ (34 :: r) ∧ SChars p v
+
+theorem parseStrBody_sound' {s : Bytes} {v r : Bytes} (h : parseStrBody s = some (v, r)) :
+    ∃ p, s = p ++ (34 :: r) ∧ SChars p v
+```
+
+`#print axioms` → `[propext, Quot.sound]`. **Not even `Classical.choice`.** Zero `sorry`.
+
+## Which architecture worked
+
+**Architecture 1** — a specialised induction, *not* `parseStrBody.induct`.
+
+The 31-case functional-induction principle was abandoned. Instead: **strong induction on the
+input length**, with the byte-pattern analysis done by hand (`cases s`, then `by_cases c = 34`,
+`c = 92`, then on the escape byte). This turns 31 generated premises into a handful of *chosen*
+ones, and — crucially — lets the eight simple escapes be collapsed into a **single** lemma
+(`psb_esc`) rather than repeated eight times.
+
+Architecture 2 (a proof-only `StrBodyRun` execution relation) was **not needed** and was not built.
+
+## Obstacles actually hit, and their nature
+
+| obstacle | nature |
+|---|---|
+| `exacts` and `tauto` unavailable | **Lean elaboration / no-Mathlib** — replaced with bullets and explicit disjunct construction. |
+| `cases h : e` silently *reverts and substitutes* hypotheses that depend on `e`, so a following `rw [h] at …` fails with a confusing "pattern not found" | **Lean elaboration.** Fixed by using `split at h` (which yields the branch equation directly) instead of `cases … with` + `rw`. |
+| `simp_all` **destroyed** the equation-compiler's unreachability hypotheses in the catch-all arm, making an *unreachable* case look like an open goal | **Lean elaboration, and the sharpest trap here.** The hypothesis `∀ x xs, c = 92 → r = x :: xs → False` was being rewritten into uselessness. Fixed by discharging that case *before* `simp_all`, applying the hypothesis by hand (`psb_bad_esc`). |
+| the `match` arms in `parseStrBody`'s recursive calls are `some`-then-`none`, not `none`-then-`some` | **Representational** — bullet order. |
+
+**None of the obstacles was logical.** The theorem was true; the fight was entirely with Lean's
+elaborator and with `simp_all`'s willingness to discard hypotheses it did not understand.
+
+## Next independent route (now the live blocker)
+
+Structural soundness for values, arrays and objects — see `ADEQUACY_REPORT.md` §4. The induction
+*order* is the new design constraint and is recorded there: `parseValue` calls `parseElems` on a
+**strictly shorter** input, but `parseElems` calls `parseValue` on an input of the **same**
+length, so a plain length induction does not close. The step must prove `pv` at length `n+1`
+first (using the IH's `pe` at `≤ n`), then `pe`/`pm` at `n+1` using the `pv` just established.

@@ -340,3 +340,19 @@ released; v1.0.1 is untouched.
   numeric ranges and encoder.
   *These theorems do NOT establish string-body soundness* — that is `parseStrBody_sound`, which
   is BLOCKED (see `BLOCKER.md`), not proved.
+
+* **`parseStrBody_sound` / `parseStrBody_sound'`** — establishes STRING-BODY SOUNDNESS: for every
+  input the released `parseStrBody` accepts, the bytes it consumed (up to the closing quote) form
+  a string body that the independently-written `SChars` grammar decodes to exactly the byte string
+  the parser returned.
+  *This theorem does NOT establish completeness* (that every grammatical body is accepted — C4),
+  *does NOT establish maximal munch* (C3, deferred), *does NOT establish anything about UTF-8
+  validity* (the grammar, like the parser, passes bytes ≥ 0x80 through unexamined, SPEC §S1.3),
+  *and says nothing about the surrounding quotes or about `parseValue`* — a `"` is consumed by the
+  caller, not here.
+
+* **`psb_esc` / `psb_esc34…psb_esc116` / `psb_bad_esc`** — establish branch equations for the
+  released parser: each simple escape decodes to its byte, and a backslash followed by anything
+  that is neither a simple escape nor `u` is rejected.
+  *These theorems do NOT establish anything about the grammar* — they are facts about the parser
+  alone, and are the only place where the parser's byte-level branch structure is exposed.

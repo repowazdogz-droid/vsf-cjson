@@ -1,7 +1,7 @@
 # ADEQUACY_REPORT.md — GAP-2, branch `gap2-adequacy-proof`
 
-**Target: C2 ∧ C4 (adequacy). Status: A10 proved; number soundness proved; string-body soundness
-BLOCKED; structural soundness, C2 and C4 not started.**
+**Target: C2 ∧ C4 (adequacy). Status: A10 proved; number soundness proved; STRING-BODY SOUNDNESS
+PROVED; structural soundness, C2 and C4 not started.**
 
 v1.0.1 is untouched. Nothing here is released. Zero `sorry`, zero custom axioms, no
 `native_decide`, no Mathlib.
@@ -20,7 +20,7 @@ SPEC.md ──(written first, oracle-verified)──> Cjson/Spec/Grammar.lean   
                                                         │
                                     Cjson/Spec/NumSound.lean     numbers ✅
                                                         │
-                                    Cjson/Spec/StrSound.lean     bridge lemmas ✅ / body ⛔
+                                    Cjson/Spec/StrSound.lean     strings ✅ (body + bridges)
                                                         │
                                               structural soundness  ✗ not started
                                                         │
@@ -52,9 +52,11 @@ scanSign_sound ✅ ───┘         └─> scanExp_sound ✅┘      │
 normNum_canonical (v1.0.1) ───────────────────────────────┘
 
 hex4_isHex ✅, enc_eq ✅, not_surrogate ✅,
-isHigh_range ✅, isLow_range ✅  ──────────> parseStrBody_sound  ⛔ BLOCKED (31-case induct)
+isHigh_range ✅, isLow_range ✅ ─┬─> parseStrBody_sound ✅  (STRING-BODY SOUNDNESS)
+psb_esc ✅, psb_bad_esc ✅ ──────┘                       │
+parseStrBody_other (v1.0.1) ────────────────────────────┘
                                                         │
-                                             SValue/SElems/SMembers soundness  ✗
+                                             SValue/SElems/SMembers soundness  ✗ (live blocker)
                                                         │
                                                     C2 ✗ ──> C1 ✗, C5 ✗
                                                     C4 ✗
@@ -84,15 +86,15 @@ theorems (C1–C5) are stated as `Prop`-valued `example`s: they elaborate, and *
 
 | # | obligation | status |
 |---|---|---|
-| 1 | `parseStrBody_sound` | **BLOCKED** — 31-case `parseStrBody.induct`. All the *mathematics* is done (`hex4_isHex`, `enc_eq`, the surrogate-range lemmas); what remains is ~400–600 lines of mechanical case plumbing. `BLOCKER.md`. |
-| 2 | `SValue` / `SElems` / `SMembers` soundness | not started. `parseValue.induct` has 26 minor premises — the same shape of grind, ~800–1200 lines. |
+| 1 | `parseStrBody_sound` | ✅ **PROVED** (architecture 1: induction on input length, *not* the 31-case `parseStrBody.induct`). `BLOCKER.md` records the resolution. |
+| 2 | `SValue` / `SElems` / `SMembers` soundness | **not started — the live blocker.** A design constraint is now known: `parseValue` calls `parseElems` on a **strictly shorter** input, but `parseElems` calls `parseValue` on an input of the **same** length. A plain length induction therefore does not close. The step must establish `pv` at length `n+1` (using the IH's `pe` at `≤ n`), *then* `pe`/`pm` at `n+1` from the `pv` just established. |
 | 3 | **C2** (value soundness) | not started; follows from 1 + 2 plus a document-level lift. |
 | 4 | **C1**, **C5** | corollaries of C2. |
 | 5 | **C4** (completeness) | not started; mutual induction on `SValue`, mirrors `roundtrip_value`. ~600–900 lines. |
 | 6 | **C3** (maximal munch) | **INTENTIONALLY DEFERRED** — out of the frozen scope. It needs a *negative* statement (no longer grammatical prefix exists) and is a different, harder induction. C2 ∧ C4 do not depend on it. |
 
-Revised estimate for the remainder: **~2,000–2,700 lines**, essentially all of it mechanical
-case work, none of it requiring new mathematics.
+Revised estimate for the remainder: **~2,000–2,700 lines**. **The remaining obligations are
+structurally understood, but their difficulty and truth remain unestablished until mechanised.**
 
 ## 5. What the proof certifies (today)
 
@@ -106,6 +108,12 @@ case work, none of it requiring new mathematics.
 
   This is the piece the research phase identified as *the hard part*, and it is the piece where
   the independence contract was actually under pressure. It held.
+* **String-body soundness.** For every input `parseStrBody` accepts, the consumed bytes form a
+  string body that the independent `SChars` grammar decodes to exactly the byte string returned.
+
+  Not vacuous, and demonstrably so: **this theorem is FALSE of the C oracle**, which accepts
+  `"\uZZZZ"` as U+0000 while `SChars.uni` demands four valid hex digits. A parser with cJSON's
+  D-STR-1 bug could not satisfy it.
 
 ## 6. What it explicitly does NOT certify
 
@@ -118,7 +126,8 @@ case work, none of it requiring new mathematics.
 * **Not completeness** (C4). Every lemma proved so far runs parser → grammar. Nothing yet runs
   grammar → parser, and **soundness without completeness is nearly vacuous here**, because §S5.1
   accepts trailing garbage: a parser that accepted only `null` would be sound.
-* **Not strings, arrays or objects.** Only the bridge lemmas exist.
+* **Not arrays or objects.** Structural soundness is not started, so nothing yet connects
+  `parseValue`/`parseDoc` to `SValue`/`SDoc`.
 * **Nothing empirical is being cited as proof.** The 55,589-input hunt from the research phase is
   evidence that no counterexample exists; it is not, and is nowhere claimed to be, a proof.
 
@@ -164,9 +173,10 @@ of *mechanical* work on top of what is proved here.
 
 **Assessment.** The gate the research phase set (A10) has passed. The obligation that carried the
 real intellectual risk (keeping the grammar's number semantics independent of the parser, and
-still proving the parser meets them) has been **discharged**. What remains is large, tedious and
-mathematically routine — and, importantly, it is now *bounded*: two known induction principles,
-31 and 26 cases, with every supporting lemma already in place.
+still proving the parser meets them) has been **discharged**. What remains is large and is now *bounded* in shape — two known induction principles, 31 and 26
+cases, with every supporting lemma in place. **But the remaining obligations are structurally
+understood, not routine: their difficulty and truth remain unestablished until mechanised.**
 
-**The adequacy gap is not closed. It is now the only thing between this artifact and a
-defensible use of the word "verified", and the path to closing it contains no unknowns.**
+**The adequacy gap is not closed.** It is the only thing between this artifact and a defensible
+use of the word "verified". The path to closing it is structurally understood — but its
+difficulty and truth remain unestablished until mechanised.
