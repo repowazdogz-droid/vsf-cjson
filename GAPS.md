@@ -103,8 +103,8 @@ Everything in `DIVERGENCES.md` and every MEASURED number is a statement about *t
 Everything in `CLAIMS.md §1` is a statement about *the Lean functions*. The bridge between
 them is:
 
-* the 20,318-input idempotence run (0 violations), which cross-checks that the binary behaves
-  as T3 says the function does;
+* the 20,318-input idempotence run (0 violations), which cross-checks that the binary <!-- claim:idem_checked=20318 --><!-- claim:idem_violations=0 -->
+  behaves as T3 says the function does;
 * nothing else.
 
 This is a real and standard gap for Lean/Coq extraction. It is stated, not hidden.

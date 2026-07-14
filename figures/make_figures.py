@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Generate the paper figures as dependency-free SVG.
+"""Generate the paper figures as dependency-free, DETERMINISTIC SVG.
 
-Figures are drawn FROM the measurement JSON, not hand-authored, so they cannot drift
-from the numbers in CLAIMS.md. Run from the repo root:  python3 figures/make_figures.py
+Drawn FROM results/canonical/*.json. `verify.sh` regenerates them into a temp directory and
+BYTE-COMPARES against the committed SVGs, failing on any difference — so a hand-edited figure,
+or a figure not regenerated after the data changed, fails the release.
+
+  python3 figures/make_figures.py [OUTDIR]     (default: figures/)
 """
-import json, os, html
+import json, os, html, sys
 
-OUT = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(OUT)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "figures")
+os.makedirs(OUT, exist_ok=True)
+CANON = os.path.join(ROOT, "results/canonical")
 
 FG, MUTE, ACC, BAD, GOOD, LINE = "#1a1a1a", "#6b6b6b", "#2b6cb0", "#c53030", "#2f855a", "#cbd5e0"
 FONT = "font-family='ui-sans-serif,-apple-system,Segoe UI,Helvetica,Arial,sans-serif'"
@@ -26,11 +31,12 @@ def t(x, y, s, size=13, fill=FG, anchor="start", weight="normal"):
 # ---------------------------------------------------------------- Fig 1: the pipeline
 def fig1():
     b = []
+    cl = json.load(open(os.path.join(CANON, "claims.json")))
     stages = [
-        ("cJSON.c", "3,206 lines C\nUNMODIFIED", MUTE),
+        ("cJSON.c", f"{cl['oracle_c_lines']:,} lines C\nUNMODIFIED", MUTE),
         ("SPEC.md", "written BEFORE\nany Lean\nevery clause\noracle-probed", ACC),
-        ("Lean 4 port", "2,229 lines\n90 theorems\n0 sorry", ACC),
-        ("Differential", "318 suite files\n120,000 fuzz", GOOD),
+        ("Lean 4 port", f"{cl['lean_lines']:,} lines\n{cl['theorem_count']} theorems\n0 sorry", ACC),
+        ("Differential", f"{cl['suite_files']} suite files\n{cl['fuzz_n']:,} fuzz", GOOD),
         ("Claims", "PROVEN / MEASURED\nOBSERVED / NOT PROVEN", FG),
     ]
     x = 30
@@ -52,31 +58,35 @@ def fig1():
 
 # ---------------------------------------------------------------- Fig 2: divergences
 def fig2():
-    d = json.load(open(os.path.join(ROOT, "harness/fuzz_results.json")))
+    d = json.load(open(os.path.join(CANON, "fuzz_results.json")))
     c, n = d["counts"], d["n"]
     rows = [
-        ("agreement (exit + bytes)", c.get("AGREE", 0), GOOD, "identical behaviour"),
-        ("D-STR-1  invalid \\u", c.get("D-STR-1", 0), BAD, "cJSON BUG: accepts invalid as U+0000"),
-        ("D-FMT    spelling", c.get("D-FMT", 0), MUTE, "same value, different text (by design)"),
-        ("D-STR-2  NUL truncation", c.get("D-STR-2", 0), BAD, "cJSON BUG: silently drops content"),
-        ("D-NUM    double pipeline", c.get("D-NUM", 0), BAD, "cJSON BUG: 1-ULP loss / inf->null"),
-        ("UNKNOWN", c.get("UNKNOWN-unparseable", 0), FG, "classifier artifact (see D-LEAN-1)"),
+        ("AGREE", c.get("AGREE", 0), GOOD, "identical exit code and bytes"),
+        ("PORT_WRONG", c.get("PORT_WRONG", 0), BAD, "the Lean port is at fault"),
+        ("TARGET_WRONG_OR_DIFFERENT", c.get("TARGET_WRONG_OR_DIFFERENT", 0), ACC,
+         "cJSON BUG: double pipeline (1-ULP loss / inf->null)"),
+        ("INTENTIONAL_SEMANTIC_CHANGE", c.get("INTENTIONAL_SEMANTIC_CHANGE", 0), MUTE,
+         "divergences approved in SPEC S6"),
+        ("HARNESS_ERROR", c.get("HARNESS_ERROR", 0), FG,
+         "OUR comparator could not decide (not either binary)"),
+        ("UNCLASSIFIED", c.get("UNCLASSIFIED", 0), BAD, "no rule matched - a finding if nonzero"),
     ]
     b = [t(30, 24, f"Figure 2 — Differential fuzzing: {n:,} inputs, oracle vs. Lean port",
            14, FG, "start", "600")]
-    b.append(t(30, 44, "Zero divergences in class (a) “Lean port is wrong”.", 12, MUTE))
-    y, BW = 70, 430
+    b.append(t(30, 44, "Every case gets exactly one label. PORT_WRONG is directly counted, "
+                       "not inferred from the absence of another label.", 12, MUTE))
+    y, BW = 70, 380
     for label, v, col, note in rows:
         w = max(1.5, BW * v / n)
         b.append(t(30, y + 12, label, 12, FG))
-        b.append(f"<rect x='215' y='{y}' width='{w:.1f}' height='16' fill='{col}' opacity='0.85'/>")
+        b.append(f"<rect x='265' y='{y}' width='{w:.1f}' height='16' fill='{col}' opacity='0.85'/>")
         pct = 100.0 * v / n
-        b.append(t(215 + w + 8, y + 12, f"{v:,}  ({pct:.2f}%)", 11, MUTE))
+        b.append(t(265 + w + 8, y + 12, f"{v:,}  ({pct:.2f}%)", 11, MUTE))
         b.append(t(760, y + 12, note, 11, col if col != MUTE else MUTE))
         y += 28
-    b.append(f"<line x1='215' y1='{y}' x2='{215+BW}' y2='{y}' stroke='{LINE}'/>")
-    b.append(t(215, y + 16, "0", 10, MUTE))
-    b.append(t(215 + BW, y + 16, f"{n:,}", 10, MUTE, "end"))
+    b.append(f"<line x1='265' y1='{y}' x2='{265+BW}' y2='{y}' stroke='{LINE}'/>")
+    b.append(t(265, y + 16, "0", 10, MUTE))
+    b.append(t(265 + BW, y + 16, f"{n:,}", 10, MUTE, "end"))
     return svg(1180, y + 40, "".join(b))
 
 

@@ -9,6 +9,10 @@ Reports two independent things, which must not be conflated:
       parser by design (SPEC S5.1 etc), so its n_ failures are NOT Lean bugs.
 """
 import subprocess, sys, os, glob, json, collections
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from classify import classify, LABELS
+
+OUT = os.environ.get("VSF_RESULTS", "results/canonical")
 
 ORACLE = "./oracle/cjson_oracle"
 LEAN   = "./lean/.lake/build/bin/cjson"
@@ -30,10 +34,12 @@ for path in sorted(glob.glob(os.path.join(SUITE, "*.json"))):
     rows.append(dict(name=name, kind=name[0], data=data.hex(),
                      oracle_exit=oe, oracle_out=oo.hex(),
                      lean_exit=le, lean_out=lo.hex(),
+                     cls=classify(data, oe, oo, le, lo),
                      agree=(oe == le and oo == lo),
                      agree_accept=(oe == 0) == (le == 0)))
 
-json.dump(rows, open("harness/suite_results.json", "w"))
+os.makedirs(OUT, exist_ok=True)
+json.dump(rows, open(os.path.join(OUT, "suite_results.json"), "w"))
 
 n = len(rows)
 agree = sum(r["agree"] for r in rows)
@@ -59,7 +65,12 @@ for label, key in (("oracle (cJSON)", "oracle_exit"), ("lean port", "lean_exit")
     print(f'{label:16s} y_ accept {c["y_pass"]}/{ytot}   n_ reject {c["n_pass"]}/{ntot}')
 
 print()
+cls = collections.Counter(r["cls"] for r in rows)
+print("classification (exactly one label per file):")
+for L in LABELS:
+    print(f'  {L:28s} {cls[L]}')
+print(f'\nPORT_WRONG = {cls["PORT_WRONG"]}   UNCLASSIFIED = {cls["UNCLASSIFIED"]}')
 div = [r for r in rows if not r["agree"]]
-print(f"DIVERGENCES (oracle != lean): {len(div)}")
+print(f"\nDIVERGENCES (oracle != lean): {len(div)}")
 for r in div:
-    print(f'  {r["kind"]}  {r["name"]}')
+    print(f'  {r["kind"]}  {r["cls"]:28s} {r["name"]}')

@@ -13,12 +13,12 @@ proofs, and *instrument the process itself* to find where it breaks. The C sourc
 oracle and is never edited; every behavioural difference is recorded as a finding rather than
 patched away.
 
-The port is 2,229 lines of Lean, 90 theorems, zero `sorry`, zero project axioms, no Mathlib.
+The port is 2,240 lines of Lean, 90 theorems, zero `sorry`, zero project axioms, no Mathlib. <!-- claim:lean_lines=2240 --><!-- claim:theorem_count=90 -->
 We prove totality (with no fuel parameter), a round-trip theorem, a canonicity invariant, and
 — unconditionally — that anything the parser produces re-parses to itself. Differential
-testing over JSONTestSuite (318 files) and 120,000 fuzzed inputs found **zero cases where the
-Lean port is wrong**, and **four genuine bugs in cJSON**, including one that silently changes
-a JSON value's *type* and one that accepts syntactically invalid input as valid.
+testing over JSONTestSuite (318 files) and 120,000 fuzzed inputs measured **PORT_WRONG = 0** — <!-- claim:suite_files=318 --><!-- claim:fuzz_n=120000 --><!-- claim:fuzz_port_wrong=0 -->
+zero cases where the Lean port is wrong — and **four genuine bugs in cJSON**, including one that
+silently changes a JSON value's *type* and one that accepts syntactically invalid input as valid.
 
 Three findings are of general interest.
 
@@ -191,19 +191,19 @@ not assumed. This is the theorem a user actually wants.
 
 ![Figure 2](figures/fig2-divergences.svg)
 
-**JSONTestSuite (318 files):** 297/318 byte-identical, 317/318 identical accept/reject.
+**JSONTestSuite (318 files):** 297/318 byte-identical, 317/318 identical accept/reject. <!-- claim:suite_byte_agree=297 --><!-- claim:suite_accept_agree=317 -->
 
 | binary | `y_` accept | `n_` reject |
 |---|---|---|
-| cJSON | 95/95 | 155/188 |
-| Lean port | 95/95 | **156/188** |
+| cJSON | 95/95 | 155/188 <!-- claim:suite_oracle_y_accept=95 --><!-- claim:suite_oracle_n_reject=155 --> |
+| Lean port | 95/95 <!-- claim:suite_lean_y_accept=95 --> | **156/188** <!-- claim:suite_lean_n_reject=156 --> |
 
 The Lean port rejects one *more* invalid input than cJSON. The 32 shared `n_` failures are
 cJSON's deliberate laxity (trailing garbage, lax numbers, control characters in strings),
 which the port replicates on purpose.
 
-**Fuzzing (120,000 inputs, fixed seed):** 116,476 exact agreements (97.06%). **Zero divergences
-in class (a) "Lean port is wrong."**
+**Fuzzing (120,000 inputs, seed 20,260,714):** 116,476 exact agreements (97.06%). <!-- claim:fuzz_n=120000 --><!-- claim:fuzz_seed=20260714 --><!-- claim:fuzz_agree=116476 --><!-- claim:fuzz_agree_pct=97.06 -->
+**`PORT_WRONG` = 0**, directly counted; **`UNCLASSIFIED` = 0**. <!-- claim:fuzz_port_wrong=0 --><!-- claim:fuzz_unclassified=0 -->
 
 **Four genuine cJSON bugs**, all reproducible from `DIVERGENCES.md`:
 

@@ -103,6 +103,7 @@ theorem parseStrBody_escapeByte (c : UInt8) (t : Bytes) :
 /-! ## The whole string -/
 
 /-- **String round-trip.** No `SafeTail` hypothesis: the closing quote is a terminator. -/
+-- @attested parseStrBody_renderStr
 theorem parseStrBody_renderStr (s : Bytes) (rest : Bytes) :
     parseStrBody (s.flatMap escapeByte ++ (34 :: rest)) = some (s, rest) := by
   induction s with

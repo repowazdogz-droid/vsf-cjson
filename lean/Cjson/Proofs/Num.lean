@@ -383,6 +383,7 @@ theorem numParts_spec (neg : Bool) (ds : List Nat) (exp : Int) (hcd : CanonDigit
     number token, the scanner recovers `n` exactly and stops exactly where the printer
     stopped. A genuine normalisation statement, not a tautology: `100`, `1e2` and `1.0e2`
     all parse to the SAME node, which must print back to one canonical spelling. -/
+-- @attested scanNumber_renderNum
 theorem scanNumber_renderNum (n : JNum) (hc : JNum.Canonical n) (rest : Bytes)
     (hs : SafeTail rest) :
     scanNumber (renderNum n ++ rest) = some (n, rest) := by

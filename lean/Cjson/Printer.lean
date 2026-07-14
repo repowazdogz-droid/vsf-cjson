@@ -98,6 +98,7 @@ def renderStr (s : Bytes) : Bytes := 34 :: (s.flatMap escapeByte ++ [34])
 
 mutual
 
+-- @attested serialize
 def serialize : JSON → Bytes
   | .null => [110, 117, 108, 108]
   | .bool true => [116, 114, 117, 101]

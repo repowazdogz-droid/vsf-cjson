@@ -11,25 +11,36 @@ This document is the checklist for that.
 ## 0. One command
 
 ```bash
-./verify.sh              # ~15 min  (full: 120k fuzz)
-./verify.sh --quick      # ~3 min   (20k fuzz; the 120k numbers in CLAIMS.md need the full run)
+./verify.sh                    # ~20 min  (full: 120k fuzz; establishes the documented numbers)
+./verify.sh --quick            # ~4 min   (proof/axiom/manifest gates; writes to results/quick/,
+                               #           leaves the tree clean; CANNOT establish the numbers)
+./harness/mutation_tests.sh    # ~15 min  (proves every gate fires; restores the tree itself)
 ```
 
 `verify.sh` **exits non-zero** if any of the following is true:
 
-| check | fails when |
-|---|---|
-| 0. oracle integrity | `oracle/cJSON.c` or `cJSON.h` differs from upstream `fb16e5c` (sha256) |
-| 1. oracle builds | the C wrapper does not compile |
-| 2. Lean builds | any of the 90 theorems breaks (built from a **clean** `.lake/`) |
-| 3. banned constructs | a `sorry`, `admit`, `native_decide`, custom `axiom`, or `@[extern]` appears |
-| 4. axioms | any theorem depends on an axiom other than Lean's standard three |
-| 5. JSONTestSuite | agreement is not 297/318 (bytes) and 317/318 (accept/reject) |
-| 6. fuzz | agreement is not 116,476/120,000 |
-| 7. idempotence | the compiled binary violates theorem T3 even once |
+| gate | what it ACTUALLY establishes | fails when |
+|---|---|---|
+| 1. oracle pin | the C is the pinned upstream source | sha256 of `cJSON.c`/`cJSON.h` differs |
+| 2. corpus pin | JSONTestSuite is at the pinned commit | the exact commit cannot be checked out (**fails closed**) |
+| 3. oracle builds | — | the wrapper does not compile |
+| 4. `lake build` | **elaboration + type-correctness only.** It does **NOT** reject `sorry`. | a proof genuinely fails to elaborate |
+| 5. sorry gate | a *fresh* build emits no ``declaration uses `sorry` `` | any declaration uses `sorry` |
+| 6. **axiom gate** | **`#print axioms` for all 11 attested declarations, parsed, set-compared to an allow-list.** This is what rejects `sorry` (as `sorryAx`) and any custom axiom. Fails closed. | a disallowed axiom, a missing declaration, or unparseable output |
+| 7. banned constructs | belt-and-braces source scan; **not** the primary gate | textual `sorry`/`admit`/`native_decide`/`@[extern]` |
+| 8. manifest | the attested set cannot shrink with the source; proof modules are in the default build target; pins/toolchain match | any drift |
+| 9–11. differential | suite / fuzz / idempotence runs | a run errors |
+| 12. PORT_WRONG | **directly counted**, not inferred | any case is `PORT_WRONG` or `UNCLASSIFIED` |
+| 13. claims | `claims.json` regenerated **from** the measurements | — |
+| 14. figures | figures regenerated to a temp dir and **byte-compared** | a figure is hand-edited or stale |
+| 15. docs | every number is parsed **out of the .md files** and compared to the generated claims | a documented number is falsified, unattested, phantom, self-contradictory, or not adjacent to its marker |
+| 16. clean tree | verification is idempotent | verification modified tracked files |
 
-If it prints `ALL CLAIMS REPRODUCED`, every number in `CLAIMS.md` has just been regenerated on
-your machine.
+**Prove the gates actually fire:** `./harness/mutation_tests.sh` runs 20 attacks (custom axiom
+indented and section-scoped, `sorry`, falsified README/PAPER/CLAIMS, removed marker, tampered
+SVG, stale figures, stale docs, broken corpus pin, broken theorem, manifest drift) and requires
+every gate to FAIL. It restores the repository automatically. v1.0.0's gates had never been
+shown to fail; three of them could not.
 
 ---
 
@@ -42,10 +53,10 @@ your machine.
 | C compiler | any C99 (`cc`). Developed with Apple clang 17. |
 | Python | 3.8+ for the harness. **Standard library only** — no pip install. |
 | git | to clone JSONTestSuite (done automatically by `verify.sh`) |
-| Platform | developed on macOS/arm64. Nothing is platform-specific; `verify.sh` uses `shasum` (use `sha256sum` on Linux — see §6). |
+| Platform | developed on macOS/arm64. Nothing is platform-specific (hashing is done in Python). |
 
-Disk: ~500 MB (mostly the Lean toolchain). Time: ~15 min for the full run, of which ~2 min is
-Lean and ~10 min is the 120k fuzz (240,000 subprocess spawns).
+Disk: ~500 MB (mostly the Lean toolchain). Time: ~20 min for the full run, of which ~2 min is
+Lean and ~13 min is the 120k fuzz (240,000 subprocess spawns).
 
 ## 2. From scratch
 
@@ -59,10 +70,11 @@ source, clones JSONTestSuite if absent, and reruns every measurement.
 
 ## 3. Reproducing individual claims
 
-**Theorems.** `cd lean && lake build`. The proof modules are imported by the default target on
-purpose — `lake build` **fails** if any theorem breaks. (In v0.x they were *not*, and stale
-`.olean` files masked four broken proofs while the build stayed green. That was a real bug; see
-`REPORT.md` §5.)
+**Theorems.** `cd lean && lake build` — this establishes elaboration and type-correctness, and
+it **fails on a broken proof**. It does **not** reject `sorry`. For that, and for custom axioms,
+run `python3 harness/check_axioms.py`, which rebuilds first (so it cannot read stale `.olean`s),
+then parses `#print axioms` for all 11 attested declarations and set-compares against the
+allow-list. Both gates are in `verify.sh`.
 
 **Axioms.**
 ```bash
@@ -74,13 +86,15 @@ EOF
 lake env lean /tmp/ax.lean
 ```
 
-**Differential vs. the oracle.**
+**Differential vs. the oracle.** All runners honour `VSF_RESULTS` (default `results/canonical`).
 ```bash
-python3 harness/run_suite.py       # JSONTestSuite, both binaries -> harness/suite_results.json
-python3 harness/fuzz.py 120000     # -> harness/fuzz_results.json
-python3 harness/idempotence.py     # -> harness/idempotence_results.json
-python3 harness/diff.py            # 28 hand-picked probes, side by side
+python3 harness/run_suite.py                     # -> results/canonical/suite_results.json
+python3 harness/fuzz.py 120000                   # -> results/canonical/fuzz_results.json
+python3 harness/idempotence.py 20000             # -> results/canonical/idempotence_results.json
+python3 harness/gen_claims.py                    # -> results/canonical/claims.json (from the above)
+VSF_RESULTS=/tmp/x python3 harness/fuzz.py 5000  # scratch run; touches nothing tracked
 ```
+Every case carries exactly one label (`harness/classify.py`); `PORT_WRONG` is directly counted.
 
 **Any single divergence in `DIVERGENCES.md`.** Every entry gives the exact input. E.g.:
 ```bash
@@ -90,8 +104,9 @@ printf '"\\uZZZZ"'           | ./oracle/cjson_oracle; echo "exit=$?"   # ""   ex
 printf '"\\uZZZZ"'           | ./lean/.lake/build/bin/cjson;  echo "exit=$?"   #      exit=1
 ```
 
-**Figures.** `python3 figures/make_figures.py` — they are drawn *from* `harness/fuzz_results.json`,
-so they cannot drift from the numbers in `CLAIMS.md`.
+**Figures.** `python3 figures/make_figures.py [OUTDIR]` — drawn from `results/canonical/*.json`
+and **deterministic**. `verify.sh` gate 14 regenerates them into a temp dir and byte-compares
+against the committed SVGs, so a hand-edited or stale figure fails the release.
 
 ## 4. Determinism
 
@@ -115,13 +130,8 @@ Please read `GAPS.md` before drawing conclusions. In particular:
 
 ## 6. Linux / non-macOS
 
-`verify.sh` uses `shasum -a 256`. On most Linux distributions:
-
-```bash
-sed -i 's/shasum -a 256/sha256sum/' verify.sh
-```
-
-Everything else is portable. If `cc` is not present, set `CC` and edit step 1.
+Hashing is done in Python (`hashlib`), not `shasum`, so `verify.sh` is portable as written.
+Requirements are `bash`, `git`, `cc` (any C99), `python3` (stdlib only) and `elan`/`lake`.
 
 ## 7. Provenance
 
@@ -130,6 +140,10 @@ Everything else is portable. If `cc` is not present, set `CC` and edit step 1.
 | oracle | `github.com/DaveGamble/cJSON` @ `fb16e5cf358798aabb049655975cde8427101056` |
 | `oracle/cJSON.c` | sha256 `607e756460fa0de37d20a7a9181f2de29c97bfb7ce5a0e6c2f548243836cd852` |
 | `oracle/cJSON.h` | sha256 `25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee` |
-| test corpus | `github.com/nst/JSONTestSuite` (cloned by `verify.sh`; not vendored) |
+| test corpus | `github.com/nst/JSONTestSuite` @ `1ef36fa01286573e846ac449e8683f8833c5b26a` (**pinned**; cloned and checked out by `verify.sh`, which **fails closed** if that exact commit cannot be fetched) |
+| Lean toolchain | `leanprover/lean4:v4.32.0` (`lean/lean-toolchain`) |
+| Lean packages | none (`lake-manifest.json` packages == `[]`) |
+| Python packages | none (stdlib only) |
 
-The C source is **never modified**. `verify.sh` step 0 fails if it has been.
+All pins live in `release/manifest.json` and are enforced by `harness/check_manifest.py`.
+The C source is **never modified**; gate 1 fails if it has been.

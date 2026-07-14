@@ -17,6 +17,7 @@ A pass here is EVIDENCE, not proof. It is reported as such in REPORT.md.
 import subprocess, sys, os, glob, json, random
 
 LEAN = os.path.abspath("./lean/.lake/build/bin/cjson")
+OUT = os.environ.get("VSF_RESULTS", "results/canonical")
 
 
 def run(data):
@@ -62,9 +63,11 @@ def main():
     print(f"  VIOLATIONS     : {len(fails)}")
     for d, r in fails[:10]:
         print(f"    {d[:60]!r}: {r}")
+    os.makedirs(OUT, exist_ok=True)
     json.dump({"checked": len(inputs), "violations": len(fails),
+               "accepted": sum(1 for d in inputs if run(d)[0] == 0),
                "examples": [[d.hex(), r] for d, r in fails[:20]]},
-              open("harness/idempotence_results.json", "w"), indent=1)
+              open(os.path.join(OUT, "idempotence_results.json"), "w"), indent=1)
 
 
 if __name__ == "__main__":

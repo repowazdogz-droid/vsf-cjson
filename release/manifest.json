@@ -1,0 +1,81 @@
+{
+  "_comment": [
+    "RELEASE MANIFEST \u2014 the fixed point of the verification pipeline.",
+    "Verification FAILS if the source and this manifest disagree in either direction:",
+    "a declaration marked '-- @attested <name>' in source but absent here, or listed here",
+    "but absent/unprovable in source. This is what stops the attested set shrinking with",
+    "the source, and stops a new claimed theorem going unattested."
+  ],
+  "version": "1.0.1",
+  "allowed_axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "attested_declarations": [
+    "Cjson.parseValue",
+    "Cjson.parseDoc",
+    "Cjson.serialize",
+    "Cjson.scanNumber_renderNum",
+    "Cjson.parseStrBody_renderStr",
+    "Cjson.scanNumber_canonical",
+    "Cjson.roundtrip_value",
+    "Cjson.parseDoc_serialize",
+    "Cjson.parseDoc_canonical",
+    "Cjson.parseDoc_depth",
+    "Cjson.parseDoc_idempotent"
+  ],
+  "proof_modules": [
+    "Cjson.Basic",
+    "Cjson.Parser",
+    "Cjson.Printer",
+    "Cjson.Proofs.Digits",
+    "Cjson.Proofs.Num",
+    "Cjson.Proofs.Str",
+    "Cjson.Proofs.RoundTrip"
+  ],
+  "expected_theorem_count": 90,
+  "lean_toolchain": "leanprover/lean4:v4.32.0",
+  "lean_packages": [],
+  "pinned_inputs": {
+    "oracle": {
+      "repo": "https://github.com/DaveGamble/cJSON",
+      "commit": "fb16e5cf358798aabb049655975cde8427101056",
+      "files": {
+        "oracle/cJSON.c": "607e756460fa0de37d20a7a9181f2de29c97bfb7ce5a0e6c2f548243836cd852",
+        "oracle/cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee"
+      }
+    },
+    "jsontestsuite": {
+      "repo": "https://github.com/nst/JSONTestSuite",
+      "commit": "1ef36fa01286573e846ac449e8683f8833c5b26a"
+    }
+  },
+  "canonical_results": [
+    "results/canonical/suite_results.json",
+    "results/canonical/fuzz_results.json",
+    "results/canonical/idempotence_results.json",
+    "results/canonical/claims.json"
+  ],
+  "figures": [
+    "figures/fig1-pipeline.svg",
+    "figures/fig2-divergences.svg",
+    "figures/fig3-proofmap.svg"
+  ],
+  "documented_claim_files": [
+    "README.md",
+    "PAPER.md",
+    "CLAIMS.md",
+    "RESULTS.md",
+    "GAPS.md",
+    "DIVERGENCES.md",
+    "REPORT.md"
+  ],
+  "fuzz": {
+    "n": 120000,
+    "seed": 20260714
+  },
+  "idempotence": {
+    "fuzz_n": 20000
+  }
+}

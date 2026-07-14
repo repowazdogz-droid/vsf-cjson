@@ -459,6 +459,7 @@ theorem serializeKV_head {k : Bytes} {v : JSON} {kvs : List (Bytes × JSON)} :
 
 /-! ## THE ROUND-TRIP THEOREM -/
 
+-- @attested roundtrip_value
 theorem roundtrip_value (v : JSON) :
     ∀ (d : Nat) (rest : Bytes), JSON.Canonical v → d + jdepth v ≤ nestingLimit →
       SafeTail rest → pv d (serialize v ++ rest) = some (v, rest) := by
@@ -657,6 +658,7 @@ theorem parseDoc_eq (s : Bytes) :
       * `Canonical v` is discharged for anything the parser produced (T2);
       * the depth bound is NOT removable — a value nested deeper than 1000 serializes
         fine but does not re-parse, because the parser enforces cJSON's limit. -/
+-- @attested parseDoc_serialize
 theorem parseDoc_serialize (v : JSON) (hc : JSON.Canonical v)
     (hd : jdepth v ≤ nestingLimit) : parseDoc (serialize v) = some v := by
   have h := roundtrip_value v 0 [] hc (by omega) safeTail_nil
@@ -678,6 +680,7 @@ Both hypotheses of T1 are now DISCHARGED, not assumed:
 
 So T3 is unconditional: anything this parser produces re-parses to itself. -/
 
+-- @attested parseDoc_depth
 theorem parseDoc_depth {s : Bytes} {v : JSON} (h : parseDoc s = some v) :
     jdepth v ≤ nestingLimit := by
   unfold parseDoc at h
@@ -690,6 +693,7 @@ theorem parseDoc_depth {s : Bytes} {v : JSON} (h : parseDoc s = some v) :
       omega
 
 /-- **T3.** Anything the parser produces re-parses to itself. Unconditional. -/
+-- @attested parseDoc_idempotent
 theorem parseDoc_idempotent {s : Bytes} {v : JSON} (h : parseDoc s = some v) :
     parseDoc (serialize v) = some v :=
   parseDoc_serialize v (parseDoc_canonical h) (parseDoc_depth h)

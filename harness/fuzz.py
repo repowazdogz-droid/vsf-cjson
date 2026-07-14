@@ -17,6 +17,8 @@ ORACLE = os.path.abspath("./oracle/cjson_oracle")
 LEAN = os.path.abspath("./lean/.lake/build/bin/cjson")
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 100_000
 SEED = 20260714
+# B6: quick runs must NOT overwrite canonical committed results.
+OUT = os.environ.get("VSF_RESULTS", "results/canonical")
 
 
 def run(binary, data):
@@ -28,60 +30,9 @@ def run(binary, data):
 
 
 # ---------- classification ----------
-
-HEXD = b"0123456789abcdefABCDEF"
-NUL_ESC = b"\\u0000"
-
-
-PARSE_FAIL = object()   # sentinel: NOT None. json.loads(b"null") legitimately returns
-                        # None, and conflating the two mis-classified 22 real D-NUM
-                        # divergences as UNKNOWN on the first 120k run. See REPORT.md.
-
-
-def norm_json(b):
-    """Parse output into a comparable structure with EXACT decimal numbers.
-    Returns PARSE_FAIL if the output is not valid JSON -- which would itself be a
-    finding, since both binaries are supposed to emit valid JSON."""
-    try:
-        return json.loads(b.decode("utf-8", "surrogateescape"),
-                          parse_float=Decimal, parse_int=Decimal)
-    except Exception:
-        return PARSE_FAIL
-
-
-def has_bad_u_escape(inp):
-    for m in re.finditer(rb"\\u", inp):
-        tail = inp[m.end():m.end() + 4]
-        if len(tail) < 4 or not all(c in HEXD for c in tail):
-            return True
-    return False
-
-
-def has_nul_semantics(inp, lean_out):
-    """cJSON stores strings as NUL-terminated C strings, so it truncates at any NUL."""
-    return (NUL_ESC in lean_out) or (NUL_ESC in inp) or (0 in inp)
-
-
-def classify(inp, oe, oo, le, lo):
-    if oe == le and oo == lo:
-        return None                                 # agreement
-    if oe != le:
-        if oe == 0 and le == 1 and has_bad_u_escape(inp):
-            return "D-STR-1"                        # oracle takes invalid \\u as U+0000
-        if oe == 0 and le == 1 and has_nul_semantics(inp, lo):
-            return "D-STR-2"
-        return "UNKNOWN-exit"
-    if oe != 0:
-        return None                                 # both rejected
-    if has_nul_semantics(inp, lo):
-        return "D-STR-2"                            # oracle truncated at a NUL
-    ov, lv = norm_json(oo), norm_json(lo)
-    if ov is PARSE_FAIL or lv is PARSE_FAIL:
-        return "UNKNOWN-unparseable"
-    if ov == lv:
-        return "D-FMT"                              # same value, different spelling
-    return "D-NUM"                                  # oracle's double pipeline lost it
-
+# Delegated to harness/classify.py, which assigns EXACTLY ONE label per case and provides a
+# directly-measured PORT_WRONG counter. See that file's honesty note before quoting numbers.
+from classify import classify, LABELS
 
 # ---------- corpus ----------
 
@@ -134,7 +85,7 @@ def work(i):
     oe, oo = run(ORACLE, inp)
     le, lo = run(LEAN, inp)
     c = classify(inp, oe, oo, le, lo)
-    if c is None:
+    if c == "AGREE":
         return None
     return dict(cls=c, inp=inp.hex(), oe=oe, oo=oo.hex(), le=le, lo=lo.hex())
 
@@ -146,18 +97,21 @@ if __name__ == "__main__":
         for k, res in enumerate(ex.map(work, range(N), chunksize=200)):
             if res:
                 counts[res["cls"]] += 1
-                if res["cls"].startswith("UNKNOWN") or counts[res["cls"]] <= 3:
+                if res["cls"] in ("UNCLASSIFIED", "PORT_WRONG") or counts[res["cls"]] <= 3:
                     findings.append(res)
             if (k + 1) % 20000 == 0:
                 print(f"  {k+1}/{N} ...", flush=True)
     counts["AGREE"] = N - sum(counts.values())
-    json.dump(dict(n=N, counts=dict(counts), findings=findings),
-              open("harness/fuzz_results.json", "w"), indent=1)
+    for L in LABELS:
+        counts.setdefault(L, 0)
+    os.makedirs(OUT, exist_ok=True)
+    json.dump(dict(n=N, seed=SEED, counts={L: counts[L] for L in LABELS}, findings=findings),
+              open(os.path.join(OUT, "fuzz_results.json"), "w"), indent=1)
     print(f"\n=== {N} inputs ===")
     for k, v in sorted(counts.items(), key=lambda x: -x[1]):
         print(f"  {k:22s} {v}")
-    unk = [f for f in findings if f["cls"].startswith("UNKNOWN")]
-    print(f"\nUNKNOWN divergences: {len(unk)}")
+    unk = [f for f in findings if f["cls"] in ("UNCLASSIFIED", "PORT_WRONG")]
+    print(f"\nPORT_WRONG + UNCLASSIFIED (the only cases that matter): {len(unk)}")
     for f in unk[:25]:
         print(f'  {f["cls"]}  in={bytes.fromhex(f["inp"])[:60]!r}')
         print(f'      oracle[{f["oe"]}]={bytes.fromhex(f["oo"])[:60]!r}')

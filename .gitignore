@@ -3,3 +3,4 @@ harness/JSONTestSuite/
 oracle/cjson_oracle
 *.olean
 __pycache__/
+results/quick/

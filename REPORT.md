@@ -25,7 +25,7 @@ in Phase 1 rather than Phase 4 is the difference between an experiment and a was
 
 ```
 oracle/       cJSON fb16e5c, UNMODIFIED, + a 62-line CLI wrapper
-lean/         Lean 4.32.0 lake project, 2,229 lines, 90 theorems, 0 sorry
+lean/         Lean 4.32.0 lake project, 2,240 lines, 90 theorems, 0 sorry
 harness/      diff.py, run_suite.py, fuzz.py, idempotence.py
 verify.sh     regenerates and re-checks EVERY claim; fails if any number moved
 CLAIMS.md     every claim tagged PROVEN / MEASURED / OBSERVED / NOT PROVEN
@@ -151,15 +151,15 @@ Then I ran out of budget on the last mile, and stopped (§5).
 
 **JSONTestSuite (318 files)**
 
-| | |
-|---|---|
-| identical exit code AND bytes | 297 / 318 |
-| identical accept/reject | 317 / 318 |
+| | | |
+|---|---|---|
+| identical exit code AND bytes | 297 / 318 | <!-- claim:suite_byte_agree=297 --><!-- claim:suite_files=318 --> |
+| identical accept/reject | 317 / 318 | <!-- claim:suite_accept_agree=317 --> |
 
 | binary | `y_` accept | `n_` reject |
 |---|---|---|
-| oracle (cJSON) | 95/95 | 155/188 |
-| Lean port | 95/95 | **156/188** |
+| oracle (cJSON) | 95/95 | 155/188 <!-- claim:suite_oracle_n_reject=155 --> |
+| Lean port | 95/95 | **156/188** <!-- claim:suite_lean_n_reject=156 --> |
 
 The Lean port rejects one *more* invalid input than cJSON. The 32 shared `n_` failures are
 cJSON's documented laxity (trailing garbage, lax numbers, control chars), replicated on
@@ -167,16 +167,16 @@ purpose.
 
 **Differential fuzzing (120,000 inputs)**
 
-| | count | share |
+| classification | count | |
 |---|---|---|
-| agreement | 116,476 | 97.06% |
-| D-STR-1 (invalid `\u` — cJSON bug) | 2,594 | 2.16% |
-| D-FMT (same value, different spelling) | 408 | 0.34% |
-| D-STR-2 (NUL truncation — cJSON bug) | 388 | 0.32% |
-| D-NUM (cJSON double pipeline) | 133 | 0.11% |
-| UNKNOWN | 1 | classifier artifact (§2) |
+| `AGREE` | 116,476 (97.06%) | <!-- claim:fuzz_agree=116476 --><!-- claim:fuzz_agree_pct=97.06 --> |
+| **`PORT_WRONG`** | **0** | <!-- claim:fuzz_port_wrong=0 --> |
+| `TARGET_WRONG_OR_DIFFERENT` | 112 | <!-- claim:fuzz_target_wrong=112 --> |
+| `INTENTIONAL_SEMANTIC_CHANGE` | 3,390 | <!-- claim:fuzz_intentional=3390 --> |
+| `HARNESS_ERROR` (our comparator, not either binary) | 22 | <!-- claim:fuzz_harness_error=22 --> |
+| `UNCLASSIFIED` | **0** | <!-- claim:fuzz_unclassified=0 --> |
 
-**Zero divergences in class (a) "Lean port is wrong".** Four real cJSON bugs found:
+**`PORT_WRONG` = 0, directly counted.** Four real cJSON bugs found:
 `1e400` → `null` (a number silently changes JSON *type*); 1-ULP precision loss; invalid
 `\uXXXX` accepted as U+0000; embedded NUL truncates strings. Two of them
 (`y_object_escaped_null_in_key`, `y_string_null_escape`) are JSONTestSuite files that cJSON
@@ -286,6 +286,16 @@ versus hours-and-abandoned for the induction principle.
    That is a fourth instrument failure (§2), and the most dangerous kind: it manufactured
    **false confidence** rather than a false alarm. It is exactly the failure mode a reviewer
    should assume is present in any "we have N theorems and zero sorry" claim.
+
+   **And it was not the last.** A hostile audit of v1.0.0 then found that the axiom gate could
+   not fire at all (it grepped `-v` for a pattern every line contained), that `lake build` does
+   not reject `sorry` (Lean warns, it does not error) while three documents claimed it did, that
+   the documentation checker never opened a `.md` file, that the figures were never regenerated,
+   and that the corpus was unpinned. **Five instrument failures, all in the same direction: the
+   harness said green when it had checked nothing.** v1.0.1 rebuilds the evidence pipeline and
+   adds `harness/mutation_tests.sh`, which injects axioms, `sorry`s, falsified numbers, tampered
+   figures and manifest drift, and *requires every gate to fail*. A gate that has never been
+   shown to fail is not evidence.
 
 **What GAP-1's closure bought:** T1's two hypotheses (`Canonical v`, `jdepth v ≤ 1000`) are now
 *discharged*, not assumed, for anything the parser produced. So **T3** — *anything this parser

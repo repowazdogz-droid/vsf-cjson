@@ -1,6 +1,8 @@
 # Verified Software Factory — cJSON → Lean 4
 
-**v1.0** · Lean 4.32.0 (Std only, no Mathlib) · oracle: [cJSON](https://github.com/DaveGamble/cJSON) `fb16e5c`, **unmodified**
+**v1.0.1** · Lean leanprover/lean4:v4.32.0 (Std only, no Mathlib) <!-- claim:lean_toolchain=leanprover/lean4:v4.32.0 -->
+· oracle: [cJSON](https://github.com/DaveGamble/cJSON) @ `fb16e5cf358798aabb049655975cde8427101056`, **unmodified** <!-- claim:oracle_commit=fb16e5cf358798aabb049655975cde8427101056 -->
+· corpus: [JSONTestSuite](https://github.com/nst/JSONTestSuite) @ `1ef36fa01286573e846ac449e8683f8833c5b26a` (pinned) <!-- claim:jsontestsuite_commit=1ef36fa01286573e846ac449e8683f8833c5b26a -->
 
 An instrumented experiment, not a product. The question is not *"can we build a verified JSON
 parser"* — people have. The question is:
@@ -12,20 +14,29 @@ So the C source is the **oracle**: never edited, sha256-checked on every run. Ev
 difference between it and the Lean port is recorded as a **finding**, not patched away.
 
 ```bash
-./verify.sh          # ~15 min. Rebuilds everything, kernel-checks all 90 theorems,
-                     # reruns every measurement, and FAILS if any recorded number moved.
-./verify.sh --quick  # ~3 min
+./verify.sh                    # ~20 min. 16 gates. Fails if anything drifts.
+./verify.sh --quick            # ~4 min. Proof/axiom/manifest gates only; leaves the tree clean.
+./harness/mutation_tests.sh    # ~15 min. Proves every gate actually FIRES (20 attacks).
 ```
+
+**Read this before trusting any green check here.** `lake build` does **not** reject `sorry` —
+Lean emits a warning, not an error. The gates that reject it are (a) a scan of a *fresh* build's
+output for ``declaration uses `sorry` `` and (b) the **axiom gate**, which parses
+`#print axioms` for all 11 attested declarations and compares the axiom *set* against an
+allow-list, catching `sorryAx` and any custom axiom structurally. v1.0.0 shipped an axiom gate
+that **could not fire** — `harness/mutation_tests.sh` exists so that never goes unnoticed
+again: it injects axioms, `sorry`s, falsified numbers, tampered figures and manifest drift, and
+requires every gate to fail.
 
 ---
 
 ## The one-paragraph result
 
-The port is **2,229 lines of Lean, 90 theorems, zero `sorry`, zero project axioms**. We prove
-totality (with *no fuel parameter*), a round-trip theorem, a canonicity invariant, and —
-unconditionally — that anything the parser produces re-parses to itself. Differential testing
-over JSONTestSuite (318 files) and 120,000 fuzzed inputs found **zero cases where the Lean port
-is wrong**, and **four genuine bugs in cJSON**.
+The port is **2,240 lines of Lean, 90 theorems, zero `sorry`, zero project axioms**. <!-- claim:lean_lines=2240 --><!-- claim:theorem_count=90 -->
+We prove totality (with *no fuel parameter*), a round-trip theorem, a canonicity invariant, and
+— unconditionally — that anything the parser produces re-parses to itself. Differential testing
+over JSONTestSuite (318 files) and 120,000 fuzzed inputs measured **PORT_WRONG = 0** — zero cases <!-- claim:suite_files=318 --><!-- claim:fuzz_n=120000 --><!-- claim:fuzz_port_wrong=0 -->
+where the Lean port is wrong — and found **four genuine bugs in cJSON**.
 
 But the headline finding is not a theorem. It is that **cJSON's round-trip is lossy by its own
 evident intent**, which means the property we were asked to prove in Phase 4 was *false of the
@@ -45,7 +56,7 @@ Every claim in this repo carries exactly one tag. Nothing blurs them.
 
 | tag | meaning | where |
 |---|---|---|
-| **PROVEN** | kernel-checked in Lean; `lake build` fails if it breaks | [`CLAIMS.md`](CLAIMS.md) §1 |
+| **PROVEN** | kernel-checked in Lean. `lake build` catches a broken *proof*; the **axiom gate** (`harness/check_axioms.py`) is what rejects `sorry` and custom axioms — see below | [`CLAIMS.md`](CLAIMS.md) §1 |
 | **MEASURED** | produced by a script in `harness/`, deterministic seed | [`CLAIMS.md`](CLAIMS.md) §2 |
 | **OBSERVED** | fact about the C, established by probing the compiled oracle | [`CLAIMS.md`](CLAIMS.md) §3 |
 | **NOT PROVEN** | explicitly outside the proofs' reach | [`CLAIMS.md`](CLAIMS.md) §4, [`GAPS.md`](GAPS.md) |
@@ -63,14 +74,15 @@ Axioms: `propext`, `Classical.choice`, `Quot.sound` — Lean's standard three, n
 
 ### MEASURED
 
-| | |
-|---|---|
-| JSONTestSuite, byte-identical output | **297 / 318** |
-| JSONTestSuite, identical accept/reject | **317 / 318** |
-| RFC conformance (`n_` reject): cJSON vs. Lean | 155/188 vs. **156/188** |
-| Fuzz, 120,000 inputs: exact agreement | **116,476 (97.06%)** |
-| Fuzz: divergences class (a) "Lean port is wrong" | **0** |
-| Idempotence cross-check, 20,318 inputs | **0 violations** |
+| | | |
+|---|---|---|
+| JSONTestSuite, byte-identical output | **297 / 318** | <!-- claim:suite_byte_agree=297 --> |
+| JSONTestSuite, identical accept/reject | **317 / 318** | <!-- claim:suite_accept_agree=317 --> |
+| RFC conformance (`n_` reject): cJSON vs. Lean | 155/188 vs. **156/188** | <!-- claim:suite_oracle_n_reject=155 --><!-- claim:suite_lean_n_reject=156 --><!-- claim:suite_n_total=188 --> |
+| Fuzz, 120,000 inputs: exact agreement | **116,476 (97.06%)** | <!-- claim:fuzz_agree=116476 --><!-- claim:fuzz_agree_pct=97.06 --> |
+| Fuzz: **PORT_WRONG** (directly counted, not inferred) | **0** | <!-- claim:fuzz_port_wrong=0 --> |
+| Fuzz: **UNCLASSIFIED** (a finding if nonzero) | **0** | <!-- claim:fuzz_unclassified=0 --> |
+| Idempotence cross-check, 20,318 inputs | **0 violations** | <!-- claim:idem_checked=20318 --><!-- claim:idem_violations=0 --> |
 
 ### OBSERVED — four genuine cJSON bugs
 
@@ -139,7 +151,7 @@ and the emitted bytes are **identical**.
 oracle/         cJSON fb16e5c, UNMODIFIED + a 62-line CLI wrapper
 lean/           Lean 4.32.0 lake project — 2,229 lines, 90 theorems, 0 sorry
 harness/        run_suite.py · fuzz.py · idempotence.py · diff.py
-figures/        SVGs, generated FROM the result JSON (they cannot drift)
+figures/        SVGs; verify.sh regenerates them into a temp dir and byte-compares
 verify.sh       regenerates and re-checks every claim in this repo
 
 PAPER.md        the write-up (6–10pp)

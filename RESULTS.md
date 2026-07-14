@@ -25,15 +25,19 @@ A pair `(exit code, stdout bytes)` is compared **exactly**. Two corpora:
    (random byte, structural byte, insert, delete, splice, truncate — 1–4 ops per input); 1/5 are
    pure random byte strings.
 
-Every divergence is auto-classified by a **deliberately conservative** classifier
-(`harness/fuzz.py`): it recognises only the divergence classes established in Phase 1, and
-reports anything else as `UNKNOWN`. **`UNKNOWN` is the only interesting output** — a clean run
-means the fuzzer found nothing outside the classes we decided about on purpose.
+Every case is assigned **exactly one** label by `harness/classify.py`:
+`AGREE`, `PORT_WRONG`, `TARGET_WRONG_OR_DIFFERENT`, `INTENTIONAL_SEMANTIC_CHANGE`,
+`HARNESS_ERROR`, `UNCLASSIFIED`. No case is left unlabelled, and `UNCLASSIFIED` is a
+finding-shaped outcome, never a silent bucket.
 
-> **Caveat you should hold against us.** That classifier is unverified code and it was **wrong
-> twice** (`REPORT.md` §2). Its verdicts are only as good as it is. The raw
-> `(input, exit, bytes) × 2` tuples are dumped to `harness/fuzz_results.json` so you can
-> reclassify them yourself.
+> **Caveat you should hold against us.** The classifier is unverified code and it has been
+> **wrong three times** (`REPORT.md` §2). The classification is automatic, but **the rules
+> encode human judgement** — they were written by the author from the Phase-1 analysis, so
+> `INTENTIONAL_SEMANTIC_CHANGE` and `TARGET_WRONG_OR_DIFFERENT` are recognised by signatures
+> *we chose*. `PORT_WRONG` deliberately does **not** depend on any such signature (it fires on
+> non-JSON output, or on accepting what the target rejected), which is what stops a port bug
+> being laundered into an "intentional" bucket. The raw `(input, exit, bytes) × 2` tuples are
+> dumped to `results/canonical/fuzz_results.json` so you can reclassify them yourself.
 
 ---
 
@@ -41,10 +45,12 @@ means the fuzzer found nothing outside the classes we decided about on purpose.
 
 ### Agreement between the two implementations
 
-| | |
-|---|---|
-| identical exit code **and** identical output bytes | **297 / 318** (93.4%) |
-| identical accept/reject decision | **317 / 318** (99.7%) |
+| | | |
+|---|---|---|
+| identical exit code **and** identical output bytes | **297 / 318** | <!-- claim:suite_byte_agree=297 --><!-- claim:suite_files=318 --> |
+| identical accept/reject decision | **317 / 318** | <!-- claim:suite_accept_agree=317 --> |
+| **`PORT_WRONG` on the suite** | **0** | <!-- claim:suite_port_wrong=0 --> |
+| **`UNCLASSIFIED` on the suite** | **0** | <!-- claim:suite_unclassified=0 --> |
 
 The 21 byte-divergences and the single accept/reject divergence are enumerated and classified in
 `DIVERGENCES.md`. **None is class (a) "Lean port is wrong."**
@@ -56,8 +62,8 @@ would be the single easiest way to mislead a reader here, so we do not.
 
 | implementation | `y_` accepted (must accept) | `n_` rejected (must reject) |
 |---|---|---|
-| oracle — cJSON `fb16e5c` | 95 / 95 | 155 / 188 |
-| Lean port | 95 / 95 | **156 / 188** |
+| oracle — cJSON | 95 / 95 | 155 / 188 <!-- claim:suite_oracle_y_accept=95 --><!-- claim:suite_oracle_n_reject=155 --> |
+| Lean port | 95 / 95 <!-- claim:suite_lean_y_accept=95 --><!-- claim:suite_y_total=95 --> | **156 / 188** <!-- claim:suite_lean_n_reject=156 --><!-- claim:suite_n_total=188 --> |
 
 **The Lean port rejects one *more* invalid input than cJSON**: `n_string_invalid_unicode_escape`
 (`["\uqqqq"]`), which cJSON accepts as U+0000 — a genuine cJSON bug (D-STR-1), and a deliberate
@@ -77,27 +83,34 @@ strings; UTF-8 is never validated.
 
 ## Corpus 2 — Differential fuzzing (120,000 inputs)
 
-| classification | count | share | what it is |
+Every case receives **exactly one** label from `harness/classify.py`. `PORT_WRONG` is now a
+**directly-measured counter**, not an inference from the absence of another label.
+
+| classification | count | what it is | |
 |---|---|---|---|
-| **agreement** | 116,476 | 97.06% | identical exit code and bytes |
-| **D-STR-1** | 2,594 | 2.16% | **cJSON bug** — invalid `\uXXXX` accepted as U+0000 |
-| **D-FMT** | 408 | 0.34% | **deliberate** — same value, different spelling (`e21` vs `e+21`) |
-| **D-STR-2** | 388 | 0.32% | **cJSON bug** — embedded NUL truncates the string |
-| **D-NUM** | 133 | 0.11% | **cJSON bug** — double pipeline (1-ULP loss, `inf` → `null`, underflow) |
-| **UNKNOWN** | **1** | 0.0008% | **our classifier**, not either binary — see below |
-| **class (a) — Lean port wrong** | **0** | — | |
+| `AGREE` | 116,476 (97.06%) | identical exit code and bytes | <!-- claim:fuzz_agree=116476 --><!-- claim:fuzz_agree_pct=97.06 --> |
+| **`PORT_WRONG`** | **0** | **the Lean port is at fault** | <!-- claim:fuzz_port_wrong=0 --> |
+| `TARGET_WRONG_OR_DIFFERENT` | 112 | cJSON's IEEE-double pipeline | <!-- claim:fuzz_target_wrong=112 --> |
+| `INTENTIONAL_SEMANTIC_CHANGE` | 3,390 | divergences approved in SPEC §S6 | <!-- claim:fuzz_intentional=3390 --> |
+| `HARNESS_ERROR` | 22 | **our comparator** could not decide (Decimal exponent range) | <!-- claim:fuzz_harness_error=22 --> |
+| `UNCLASSIFIED` | **0** | no rule matched — a finding if nonzero | <!-- claim:fuzz_unclassified=0 --> |
+
+`PORT_WRONG` is decided by rules that do **not** use any signature we chose (our binary emitted
+non-JSON; or we accepted what the target rejected), so it cannot be laundered by the
+intentional-divergence rules. The classification is automatic but **the rules encode human
+judgement** — see the honesty note at the top of `harness/classify.py`. `HARNESS_ERROR` counts
+cases where *we* failed, not either binary.
 
 ![Figure 2](figures/fig2-divergences.svg)
 
-### Why D-STR-1 dominates
+### Why INTENTIONAL_SEMANTIC_CHANGE dominates
 
-2,594 hits is not a statement about how often cJSON mishandles `\u` escapes in practice. It is an
-artifact of the corpus: random byte mutation of seeds containing `\u` escapes produces broken hex
-digits very often. **Divergence *frequency* here reflects the mutation operator, not real-world
-prevalence.** We report it because hiding it would be worse, not because it is meaningful as a
-rate.
+That bucket is dominated by invalid-`\u` escapes (D-STR-1). Its size is **not** a statement about
+how often cJSON mishandles escapes in practice — it is an artifact of the corpus: random byte
+mutation of seeds containing `\u` escapes produces broken hex digits very often. **Divergence
+*frequency* here reflects the mutation operator, not real-world prevalence.**
 
-### The single UNKNOWN
+### HARNESS_ERROR — cases where *we* failed, not either binary
 
 ```
 in     : 1e400030000000000000004]
@@ -105,9 +118,9 @@ oracle : null                        <- cJSON's inf → null bug (D-NUM-1)
 lean   : 1e400030000000000000004     <- exact, and valid RFC 8259
 ```
 
-Neither binary misbehaved. **The classifier did**: it re-parses both outputs with Python's `json`
-using `parse_float=Decimal` to compare values exactly, and `Decimal` caps exponents at ~1e999999
-and *raises* on this one.
+Neither binary misbehaved. **The comparator did**: to compare values exactly it re-parses both
+outputs with `parse_float=Decimal`, and `Decimal` caps exponents at ~1e999999 and *raises* on
+this one. Rather than hide these, they are counted in their own `HARNESS_ERROR` bucket.
 
 But chasing it produced the one genuine finding **against our own port** (D-LEAN-1, `GAPS.md` §3):
 modelling numbers exactly means the serializer faithfully emits an exponent of any magnitude,
@@ -116,16 +129,16 @@ interop cost, and we found it only because an instrument broke.**
 
 ---
 
-## Corpus 3 — Idempotence cross-check (20,318 inputs)
+## Corpus 3 — Idempotence cross-check
 
 `run(run(x)) == run(x)` on the compiled Lean binary, over the full JSONTestSuite corpus plus
 20,000 fuzz inputs.
 
-| | |
-|---|---|
-| inputs checked | 20,318 |
-| accepted by the Lean binary | 3,021 |
-| **violations** | **0** |
+| | | |
+|---|---|---|
+| inputs checked | 20,318 | <!-- claim:idem_checked=20318 --> |
+| accepted by the Lean binary | 3,021 | <!-- claim:idem_accepted=3021 --> |
+| **violations** | **0** | <!-- claim:idem_violations=0 --> |
 
 **What this is now.** Idempotence is **PROVEN** (theorem T3). So this run is *not* evidence for
 an unproved property. It is a **cross-check that the extracted binary agrees with the theorem's
@@ -145,6 +158,9 @@ wrong anywhere the corpora reach.
 
 **They do not support** — and no reviewer should let us imply otherwise:
 
+* **That `PORT_WRONG = 0` means the port is correct.** It means no case in *these corpora*
+  triggered the PORT_WRONG rules. Those rules catch a port that emits non-JSON or accepts what
+  the target rejects; they do **not** catch a port that is wrong in the same way cJSON is wrong.
 * **That the parser accepts the right language.** No theorem constrains the accept-set (GAP-2).
   This is agreement with a *buggy* oracle, and where both implementations are wrong **in the same
   way** the differential test is blind **by construction**. Both accept trailing garbage. Both

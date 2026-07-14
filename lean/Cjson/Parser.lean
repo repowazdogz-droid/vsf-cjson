@@ -314,6 +314,7 @@ theorem scanDigits_lt10 (s : Bytes) : ∀ d ∈ (scanDigits s).1, d < 10 := by
     · simp
 
 /-- **T2 (scanner).** Any number the scanner returns is canonical. -/
+-- @attested scanNumber_canonical
 theorem scanNumber_canonical {s : Bytes} {n : JNum} {r : Bytes}
     (h : scanNumber s = some (n, r)) : JNum.Canonical n := by
   simp only [scanNumber] at h
@@ -439,6 +440,7 @@ abbrev Res (α : Type) (P : α → Prop) (s : List UInt8) : Type :=
 mutual
 
 /-- A single JSON value. `depth` is the SPEC S2 nesting counter (limit 1000). -/
+-- @attested parseValue
 def parseValue (depth : Nat) (s : List UInt8) :
     Res JSON (fun v => JSON.Canonical v ∧ jdepth v ≤ nestingLimit - depth) s :=
   match s with
@@ -593,6 +595,7 @@ def skipBom : Bytes → Bytes
 
 /-- Top-level parse. Per SPEC S5.1 (cJSON's `require_null_terminated = 0`) **trailing
     bytes after a complete value are ignored**, not an error. -/
+-- @attested parseDoc
 def parseDoc (s : Bytes) : Option JSON :=
   match parseValue 0 (skipWs (skipBom s)) with
   | none => none
@@ -601,6 +604,7 @@ def parseDoc (s : Bytes) : Option JSON :=
 /-- **T2 (structural) — GAP-1 CLOSED.** Every value the parser produces is canonical.
     This is not a separate induction: the parser's return type carries the proof, so this
     theorem is just the projection. -/
+-- @attested parseDoc_canonical
 theorem parseDoc_canonical {s : Bytes} {v : JSON} (h : parseDoc s = some v) :
     JSON.Canonical v := by
   unfold parseDoc at h
