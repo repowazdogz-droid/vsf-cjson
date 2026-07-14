@@ -43,10 +43,12 @@ jobs:
       - name: install the pinned Lean toolchain (from lean/lean-toolchain)
         run: |
           set -euo pipefail
+          # download OUTSIDE the workspace: the clean-tree gate (correctly) fails on any
+          # stray file, and it caught this.
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v3.1.1/elan-init.sh \
-            -o elan-init.sh
-          sha256sum elan-init.sh
-          sh elan-init.sh -y --default-toolchain none
+            -o "$RUNNER_TEMP/elan-init.sh"
+          sha256sum "$RUNNER_TEMP/elan-init.sh"
+          sh "$RUNNER_TEMP/elan-init.sh" -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: show toolchain (must match release/manifest.json)
