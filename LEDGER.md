@@ -290,3 +290,53 @@ sound; it is not `native_decide`, which would move the check outside the kernel.
 I did not attempt to eliminate `propext` / `Classical.choice` / `Quot.sound`. They enter
 through `simp`, `omega`, and well-founded recursion. Removing them was not a requirement and
 would have cost more than it is worth here.
+
+
+---
+
+## 7. GAP-2 adequacy proof — boundary statements (branch `gap2-adequacy-proof`)
+
+One sentence per major lemma, saying what it does **not** establish. Nothing in this section is
+released; v1.0.1 is untouched.
+
+* **A10 `canonical_unique`** — establishes that two *canonical* `JNum`s denoting the same exact
+  decimal are equal, so "the value the grammar assigns" is well-defined.
+  *This theorem does NOT establish that a number has a unique syntactic spelling* — `100`, `1e2`
+  and `1.0e2` are three different byte strings and must remain so; it says only that they land on
+  the same AST node.
+
+* **`natOf_inj`** — establishes that the positional denotation is injective on digit lists with
+  no leading zero and all digits `< 10`.
+  *This theorem does NOT establish anything about lists that violate either condition* — both are
+  necessary (`[12]` vs `[1,2]`; `[0,1]` vs `[1]`).
+
+* **`normNum_denote`** — establishes that the parser's normaliser lands in the grammar's
+  `SameNum` equivalence class, which is what lets the grammar keep parser-independent number
+  semantics.
+  *This theorem does NOT establish that `normNum` produces a canonical result* (that is
+  `normNum_canonical`, proved separately in v1.0.1), and it does NOT say the parser consumed the
+  right bytes.
+
+* **`ofDigits_natOf`** — establishes that the parser's Horner fold and the grammar's positional
+  denotation agree.
+  *This theorem does NOT establish anything about digit lists containing values `≥ 10`* — it is
+  an identity of two denotations, not a well-formedness check.
+
+* **`scanDigits_sound` / `scanFrac_sound` / `scanExpDigits_sound` / `scanExp_sound` /
+  `scanSign_sound`** — each establishes that the bytes the corresponding scanner consumed form a
+  grammatical fragment denoting exactly what the scanner returned.
+  *These theorems do NOT establish maximal munch (C3, deferred): they say the consumed bytes are
+  grammatical, not that no longer grammatical prefix exists.*
+
+* **`scanNumber_sound`** — establishes NUMBER SOUNDNESS: the bytes `scanNumber` consumed form a
+  token that the SPEC grammar assigns exactly the value returned.
+  *This theorem does NOT establish the §S2 dispatch gate* (that `+1` and `.5` are rejected at
+  value position — that gate lives in `parseValue`, not in `scanNumber`), *does NOT establish
+  maximal munch*, and *does NOT establish completeness* (that every grammatical number token is
+  accepted).
+
+* **`hex4_isHex` / `not_surrogate` / `isHigh_range` / `isLow_range` / `enc_eq`** — establish the
+  bridge lemmas between the parser's boolean surrogate tests and hex decoder and the grammar's
+  numeric ranges and encoder.
+  *These theorems do NOT establish string-body soundness* — that is `parseStrBody_sound`, which
+  is BLOCKED (see `BLOCKER.md`), not proved.

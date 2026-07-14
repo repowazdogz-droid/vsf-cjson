@@ -7,3 +7,5 @@ import Cjson.Proofs.Digits
 import Cjson.Proofs.Num
 import Cjson.Proofs.Str
 import Cjson.Proofs.RoundTrip
+-- GAP-2 research/proof branch: the declarative spec grammar and its metatheory.
+import Cjson.Spec
