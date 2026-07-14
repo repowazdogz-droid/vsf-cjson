@@ -50,11 +50,13 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: show toolchain (must match release/manifest.json)
+        # NB: run from lean/, which is where lean-toolchain lives; elan resolves the
+        # pinned toolchain from the directory, and there is no default toolchain set.
         run: |
           set -euo pipefail
           cat lean/lean-toolchain
           elan toolchain install "$(cat lean/lean-toolchain)"
-          lean --version
+          ( cd lean && lean --version && lake --version )
 
       - name: build every proof module from a clean state
         run: |
