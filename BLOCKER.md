@@ -143,3 +143,60 @@ New required whitespace/BOM facts, all proved: `skipWs_split`, `skipBom_split`, 
 No parser change, no grammar change, no witness carried. `#print axioms` → standard axioms only.
 
 **The live blocker is now C4 (completeness)** — deferred to the next phase per instruction.
+
+
+---
+
+# RESOLUTION 3 — C4 (completeness) and adequacy (2026-07-15)
+
+The "live blocker" recorded above (C4, completeness) is now **PROVED**, and so is **adequacy**
+(`C2 ∧ C4`). No blocker remains open on this branch.
+
+## What was proved
+
+```lean
+theorem struct_complete {p0 v0} (h0 : SValue p0 v0) :
+    ∀ d rest, d + jdepth v0 ≤ nestingLimit → SafeTail rest →
+      pv d (p0 ++ rest) = some (v0, rest)
+
+theorem C4 : ∀ p v rest, SValue p v → DepthOk v →
+    (∀ c t, rest = c :: t → isDigitB c = false ∧ c.toNat ≠ 46 ∧ c.toNat ≠ 101 ∧ c.toNat ≠ 69) →
+    ∃ h, parseValue 0 (p ++ rest) = some ⟨(v, rest), h⟩          -- EXACT Grammar.lean statement
+
+theorem adequacy :
+    (∀ s v, parseDoc s = some v → SDoc s v) ∧                    -- C2
+    (∀ p v rest, SValue p v → DepthOk v → … → ∃ h, …)            -- C4
+```
+
+`#print axioms` on all three → `[propext, Classical.choice, Quot.sound]`. Zero `sorry`, zero
+custom axioms, no `native_decide`, no Mathlib.
+
+## Which architecture worked
+
+The **approved architecture**: ONE mutual structural induction on the grammar derivation via
+`SValue.rec` (3 motives — SValue / SElems / SMembers; 13 cases), threading `d + jdepth v ≤
+nestingLimit` (never subtraction), `SafeTail` on the value motive only. **NOT** the staged
+length induction that soundness needed — the grammar derivation is well-founded by construction,
+so no staging hazard exists in this direction. Constructors closed in the mandated order (null,
+true, false, number, string, arr0, arr, obj0, obj, elem-last, elem-cons, mem-last, mem-cons).
+
+## Obstacles actually hit, and their nature
+
+| obstacle | nature |
+|---|---|
+| `rw [hsk]` under `parseValue`'s dependent `match` → "motive is not type correct" | **Lean elaboration** (the same trap documented since GAP-1). Fixed by **not** rewriting the `skipWs` result in the goal: abstract the parsed head to `pre`, keep `skipWs pre` symbolic, and rewrite the supplied `hw`/`hsp` inside each `split` branch — mirroring the released `pv_arr_cons`. |
+| released assembly lemmas (`pv_arr_cons`, `pe_cons`, `pm_last`, …) don't fire | **Genuine finding, not tooling** — they assume whitespace-free canonical spelling (`skipWs (c::t) = c::t`). Logged in `INDEPENDENCE_RISK.md` Risk 5. Generalized `_gen` versions were proved. |
+| 3-way `split` wildcard binds *two* refuter hypotheses (≠first, ≠second), colon `split` binds one | **Lean elaboration** — bullet/binder count. |
+| `skipWs_append_Ws` needs `skipWs (w ++ t)`, but list literals are left-associated | **Representational** — a leading `List.append_assoc` before each `skipWs_append_Ws`. |
+| `pm_last_gen`/`pm_cons_gen` implicit `r`, `sr`, and `pe_cons_gen` implicit `r2` un-synthesizable | **Lean elaboration** — supplied explicitly via named args. |
+
+**None of the obstacles was logical.** The theorem was true; every fight was with the elaborator
+or with the canonical-specificity of the released round-trip lemmas.
+
+## Independence
+
+No parser change, no grammar change, no witness carried in any return type. The grammar admits
+arbitrary spellings and the proof forces the released parser through them; the final theorem is
+**false of a parser that only accepts canonical serialization** (it must accept `[ 1 , 2 ]` with
+spaces, `01`, `1.0e2`, mixed-case `\uXXXX`, …). Risk 2 (return-type witness) remains rejected and
+unused. See `INDEPENDENCE_RISK.md` Risk 5.

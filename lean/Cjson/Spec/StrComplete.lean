@@ -47,6 +47,7 @@ theorem isHigh_false_of_not {cp : Nat} (h : ¬ (0xD800 ≤ cp ∧ cp ≤ 0xDFFF)
     *arbitrary* `SChars` spelling — `\/`, unescaped `/`, mixed-case `\uXXXX`, surrogate pairs,
     raw bytes ≥ 0x80 — NOT restricted to the canonical rendering), the parser consumes exactly
     `body` up to the closing quote and returns `v`, leaving `rest`. -/
+-- @attested-gap2 Cjson.Spec.parseStrBody_complete
 theorem parseStrBody_complete : ∀ {body v : Bytes}, SChars body v →
     ∀ {rest : Bytes}, parseStrBody (body ++ (34 :: rest)) = some (v, rest) := by
   intro body v h

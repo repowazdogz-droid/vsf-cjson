@@ -66,7 +66,17 @@ jobs:
           rm -rf lean/.lake
           ( cd lean && lake build )
 
-      - name: full release verification (16 gates)
+      - name: GAP-2 adequacy — build + gate (C2 ∧ C4)
+        # Direct gate, independent of verify.sh ordering. Fails CI if any GAP-2 theorem
+        # stops compiling, gains a new axiom, or changes statement (Cjson.Spec.Checks pins
+        # the exact C2/C4 Props and adequacy = C2 ∧ C4), or if ADEQUACY_SUMMARY.md is stale.
+        run: |
+          set -euo pipefail
+          ( cd lean && lake build Cjson.Spec.Checks )
+          python3 harness/gap2/check_gap2.py
+          python3 harness/gap2/gen_adequacy_summary.py --check
+
+      - name: full release verification (16 gates + GAP-2)
         run: ./verify.sh
 
       - name: mutation suite (20 attacks; every gate must FAIL)

@@ -4,3 +4,6 @@ oracle/cjson_oracle
 *.olean
 __pycache__/
 results/quick/
+
+# transient Lean probe files written by the GAP-2 checkers (cleaned up in finally-blocks)
+lean/.vsf_*.lean

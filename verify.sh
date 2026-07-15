@@ -96,6 +96,25 @@ step "8. Coverage manifest"
 python3 harness/check_manifest.py | sed 's/^/  /' || { fail "manifest"; die; }
 pass "attested set, proof modules, pins and toolchain all match the manifest"
 
+step "8b. GAP-2 adequacy — build the spec chain + statement pins (Cjson.Spec.Checks)"
+# Cjson.Spec.Checks re-asserts the exact Grammar.lean C2/C4 Props and `adequacy = C2 ∧ C4`;
+# if any of those statements is weakened or restated it STOPS COMPILING here.
+( cd lean && lake build Cjson.Spec.Checks ) >/dev/null 2>&1 \
+  || { fail "Cjson.Spec.Checks failed — a C2/C4/adequacy statement changed, or a proof broke"; die; }
+pass "Cjson.Spec.Checks compiles — C2, C4 and adequacy statements are unchanged"
+
+step "8c. GAP-2 axiom / attestation / grammar-freeze gate (fails closed)"
+# Rebuilds the spec chain, runs #print axioms on all 10 attested GAP-2 declarations, checks the
+# @attested-gap2 markers against release/gap2_manifest.json (both directions), pins the frozen
+# Grammar Props by hash, and asserts the released artifact is byte-identical to v1.0.1.
+python3 harness/gap2/check_gap2.py | sed 's/^/  /' || { fail "GAP-2 adequacy verification"; die; }
+pass "C2 ∧ C4 (adequacy): axiom-clean, attested, Grammar frozen, released artifact = v1.0.1"
+
+step "8d. ADEQUACY_SUMMARY.md is a faithful regeneration of the compiled theorems (byte-compare)"
+python3 harness/gap2/gen_adequacy_summary.py --check | sed 's/^/  /' \
+  || { fail "ADEQUACY_SUMMARY.md out of date — run harness/gap2/gen_adequacy_summary.py and commit"; die; }
+pass "ADEQUACY_SUMMARY.md byte-matches a fresh regeneration"
+
 step "9. Differential — JSONTestSuite (pinned corpus)"
 VSF_RESULTS=$RESULTS python3 harness/run_suite.py | sed -n '1,17p' | sed 's/^/    /' || { fail "suite"; die; }
 pass "suite run complete -> $RESULTS/suite_results.json"

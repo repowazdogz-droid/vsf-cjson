@@ -291,6 +291,7 @@ theorem hM_step (n : Nat) (ihV : PVsound n) (ihM : PMsound n) : PMsound (n+1) :=
 
 /-! ## The staged induction and the final soundness theorems -/
 
+-- @attested-gap2 Cjson.Spec.struct_sound
 theorem struct_sound : ∀ n, PVsound n ∧ PEsound n ∧ PMsound n := by
   intro n
   induction n with
@@ -350,6 +351,7 @@ theorem skipBom_split (s : Bytes) : ∃ bom, s = bom ++ skipBom s ∧ Bom bom :=
     there is a BOM, a whitespace block, a grammatical value prefix denoting `v`, and a
     (discarded) trailing remainder, in that order. The depth bound is supplied by the
     released `parseDoc_depth` (v1.0.1). -/
+-- @attested-gap2 Cjson.Spec.parseDoc_sound
 theorem parseDoc_sound {s : Bytes} {v : JSON} (h : parseDoc s = some v) : SDoc s v := by
   -- extract the underlying parseValue success (mirrors parseDoc_canonical)
   unfold parseDoc at h

@@ -179,3 +179,60 @@ length-staged induction) worked; architectures 2–4 were not needed.
 
 **Verdict: parser → grammar → theorem intact. No parser or grammar definition changed; nothing
 carries a witness.** Risk 2 (return-type witness) remains rejected and unused.
+
+
+---
+
+## Risk 5 — completeness reuse: **NO RISK TAKEN**, but a REUSE AUDIT finding logged (2026-07-15)
+
+`struct_complete` / `C4` / `adequacy` were proved on **2026-07-15**. The mandated **reuse audit**
+of the released `Cjson.Proofs.RoundTrip` assembly lemmas produced a real finding.
+
+### The finding
+
+`roundtrip_value`'s assembly lemmas (`pv_arr_cons`, `pv_obj_cons`, `pe_last`, `pe_cons`,
+`pm_last`, `pm_cons`) are **canonical-specific**. Each assumes the parsed value's tail is
+*already* the next delimiter with **no interior whitespace**:
+
+```lean
+pv_arr_cons … (hws : skipWs (c :: t) = c :: t) …          -- skipWs is the IDENTITY here
+pe_last     … (h : pv d s = some (x, 93 :: rest)) …       -- ']' literally adjacent to the value
+```
+
+This holds for `serialize v` (the serializer emits no interior whitespace) but **not** for an
+arbitrary grammatical spelling. `SElems.cons` is `p ++ w1 ++ [44] ++ w2 ++ q` with `Ws w1`, `Ws w2`
+free — `[ 1 , 2 ]` is grammatical and the released lemmas cannot assemble it.
+
+### Was each reused lemma checked against the three questions? Yes.
+
+> **Does it assume the prefix is `serialize v`?** The literal/leaf lemmas `pv_null`, `pv_true`,
+> `pv_false`, `pv_num_known`, `pv_str_known` do **not** — they are parametric over any
+> `scanNumber`/`parseStrBody` result and any tail, so they were **reused as-is**. The *structural*
+> assembly lemmas above **do** implicitly assume it (via the whitespace-free `hws`), so they were
+> **NOT reused**.
+> **Is it genuinely parametric / does it preserve arbitrary grammatical spelling?** No for the
+> structural ones. **Independent generalizations were proved** (`pv_arr_cons_gen`, …, `pm_cons_gen`,
+> plus `pe_last_gen`/`pe_cons_gen`/`pm_last_gen`) that abstract the parsed head to an arbitrary
+> `pre` and take an explicit `hw : skipWs r = 44/58/93/125 :: …`, so interior whitespace and
+> non-canonical spellings are admitted. The proof *bodies* are the released ones with the
+> `skipWs_44`-style simp lemmas replaced by the supplied `hw` — no new mathematics, no parser/grammar
+> change.
+
+### Independence test, answered as required
+
+> **Does anything introduced merely describe an execution that already occurred?** No new parser
+> and no new grammar. The `_gen` lemmas, `struct_complete`, `C4`, `pv_dep` are theorems *about* the
+> released parser and the unchanged grammar.
+> **Is acceptance/value meaning still supplied by the independent grammar?** Yes — the hypotheses
+> are `SValue`/`SElems`/`SMembers`/`SChars`/`SNumTok` from `Grammar.lean`, none mentioning the parser.
+> **Could a defective parser satisfy the statement while violating the grammar?** No, and it is not
+> vacuous: `C4` is **false of a parser that only accepts canonical serialization** — it is forced to
+> accept `[ 1 , 2 ]`, `01`, `1.0e2`, mixed-case `\uXXXX`, valid surrogate pairs. A canonical-only
+> parser fails `struct_complete` at the first interior-whitespace or non-canonical-number case.
+> **Is the final implication substantive, not `rfl`/projection?** Substantive — a 13-case mutual
+> induction with genuine depth accounting and per-boundary `SafeTail` discharge (`safeTail_ws`),
+> not a projection off a subtype.
+
+**Verdict: parser → grammar → theorem intact. No parser or grammar definition changed; nothing
+carries a witness.** Risk 2 (return-type witness) remains rejected and unused. The generalization
+was the honest route around a real canonical-specificity gap, not a shortcut through it.

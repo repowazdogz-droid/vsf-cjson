@@ -1,0 +1,76 @@
+{
+  "_comment": [
+    "GAP-2 ADEQUACY MANIFEST — the fixed point of the adequacy verification track.",
+    "This is INDEPENDENT of release/manifest.json (which pins the v1.0.1 released artifact).",
+    "The GAP-2 spec chain has its own root, Cjson.Spec, and is NOT imported by Cjson.lean, so",
+    "the released artifact stays byte-identical to v1.0.1. harness/gap2/check_gap2.py fails if",
+    "the source and this manifest disagree in either direction (a '-- @attested-gap2 <name>'",
+    "marker absent here, or a name here absent/unprovable in source), if any listed declaration",
+    "gains an axiom outside allowed_axioms, if the pinned Grammar Prop text changes, or if the",
+    "statement-pin module Cjson.Spec.Checks stops compiling."
+  ],
+  "spec_root": "Cjson.Spec",
+  "check_module": "Cjson.Spec.Checks",
+  "lean_toolchain": "leanprover/lean4:v4.32.0",
+  "allowed_axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "attested_declarations": [
+    "Cjson.Spec.canonical_unique",
+    "Cjson.Spec.scanNumber_sound",
+    "Cjson.Spec.parseStrBody_sound'",
+    "Cjson.Spec.struct_sound",
+    "Cjson.Spec.parseDoc_sound",
+    "Cjson.Spec.scanNumber_complete",
+    "Cjson.Spec.parseStrBody_complete",
+    "Cjson.Spec.struct_complete",
+    "Cjson.Spec.C4",
+    "Cjson.Spec.adequacy"
+  ],
+  "adequacy_conjuncts": {
+    "C2": "Cjson.Spec.parseDoc_sound",
+    "C4": "Cjson.Spec.C4"
+  },
+  "proof_modules": [
+    "Cjson.Spec.Grammar",
+    "Cjson.Spec.Uniqueness",
+    "Cjson.Spec.NumSound",
+    "Cjson.Spec.StrSound",
+    "Cjson.Spec.StructSound",
+    "Cjson.Spec.NumComplete",
+    "Cjson.Spec.StrComplete",
+    "Cjson.Spec.StructComplete",
+    "Cjson.Spec.Checks"
+  ],
+  "expected_spec_theorem_count": 102,
+  "grammar_prop_pin": {
+    "_comment": [
+      "sha256 over the exact byte range of Grammar.lean holding the C1-C5 candidate Props plus",
+      "the SDoc/SAccepts/DepthOk definitions they reference. Any edit to the frozen spec Props",
+      "changes this hash and fails the gate, so a theorem's MEANING cannot drift by silently",
+      "editing the spec it is pinned against. Regenerate deliberately with --update-grammar-pin."
+    ],
+    "file": "lean/Cjson/Spec/Grammar.lean",
+    "start_marker": "def DepthOk (v : JSON) : Prop := jdepth v ≤ nestingLimit",
+    "end_marker": "example : Prop := ∀ s, ¬ SAccepts s → parseDoc s = none",
+    "sha256": "28765891d7985c81c576bc24aeef470300a7388b64810428020e8c50fb4356d5"
+  },
+  "released_artifact_untouched": {
+    "_comment": "These released files MUST remain byte-identical to tag v1.0.1; check_gap2.py asserts it.",
+    "files": [
+      "lean/Cjson.lean",
+      "lean/Cjson/Parser.lean",
+      "lean/Cjson/Basic.lean",
+      "lean/Cjson/Printer.lean",
+      "lean/Cjson/Proofs/Digits.lean",
+      "lean/Cjson/Proofs/Num.lean",
+      "lean/Cjson/Proofs/Str.lean",
+      "lean/Cjson/Proofs/RoundTrip.lean",
+      "lean/lakefile.toml",
+      "lean/lean-toolchain"
+    ],
+    "git_tag": "v1.0.1"
+  }
+}

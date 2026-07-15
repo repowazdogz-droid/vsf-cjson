@@ -418,3 +418,63 @@ released; v1.0.1 is untouched.
   digits make `hex4` succeed with `hex4v`, and the grammar's surrogate ranges pin the parser's
   boolean tests. *These do NOT establish the parser rejects invalid hex* (that is D-STR-1, a
   soundness-side/oracle fact).
+
+* **generalized assembly lemmas (`pv_arr_empty_gen` / `pv_arr_cons_gen` / `pv_obj_empty_gen` /
+  `pv_obj_cons_gen`) and generalized loop equations (`pe_last_gen` / `pe_cons_gen` /
+  `pm_last_gen` / `pm_cons_gen`)** — the whitespace-tolerant converses of the released
+  `RoundTrip` assembly lemmas. **REUSE AUDIT (required):** the released `pv_arr_cons` / `pe_cons`
+  / `pm_last` … all assume the value tail is *already* the delimiter (`hws : skipWs (c::t) = c::t`,
+  or `pv d s = some (x, 93::rest)` with `]` literally adjacent) — i.e. **no interior
+  whitespace** — because `serialize` emits none. They are therefore *canonical-specific* and
+  cannot be reused for arbitrary grammatical spellings. The `_gen` versions abstract the parsed
+  head to an arbitrary `pre` / accept an explicit `hw : skipWs r = 44/58/93/125 :: …`, so they
+  fire on `[ 1 , 2 ]` (spaces), `{ "k" : 1 }`, etc. The proof bodies are the released ones with
+  `skipWs_44`-style simp lemmas replaced by the supplied `hw` rewrite.
+  *These lemmas do NOT establish the parser rejects anything* — they are one-directional
+  assembly steps (grammar derivation → parser success), *and they carry no depth reasoning*
+  beyond the `d < nestingLimit` gate passed in.
+
+* **`SElems_head` / `SElems_skipWs` / `SMembers_head` / `SMembers_skipWs` / `safeTail_ws`** —
+  structural helpers: an element/member list begins with a value head / an object key's `"`
+  (both non-whitespace, so `skipWs` fixes `p ++ rest`); and a whitespace run followed by one of
+  `, ] }` is `SafeTail`. *These do NOT establish grammaticality*; they are the plumbing that lets
+  the value IH fire with a provable `SafeTail` at every number/closer boundary.
+
+* **`struct_complete`** — establishes STRUCTURAL COMPLETENESS by ONE mutual structural induction
+  on the grammar derivation (`SValue.rec`, 3 motives, 13 cases), threading the depth bound
+  `d + jdepth v ≤ nestingLimit` (never subtraction) and `SafeTail` on the value motive only:
+  for every grammatical `SValue p v` (arbitrary spelling — interior whitespace, non-canonical
+  numbers/strings, valid surrogate pairs), `pv d (p ++ rest) = some (v, rest)` whenever the depth
+  bound and `SafeTail rest` hold; likewise `pe`/`pm` for `SElems`/`SMembers` (no `SafeTail`
+  needed — element/member lists end in a structural closer). The number/string leaves are
+  `scanNumber_complete` / `parseStrBody_complete`; the recursion is assembled by the `_gen`
+  lemmas above. Number-adjacency `SafeTail` obligations inside lists are discharged by
+  `safeTail_ws` (the next byte is always whitespace, `,`, or a closer).
+  *This theorem does NOT establish soundness* (the converse — that is `struct_sound`/C2), *does
+  NOT establish maximal munch* (C3, deferred — it relies on `SafeTail` to stop over-consumption),
+  *does NOT establish rejection of any non-grammatical input* (C5, one-directional grammar →
+  parse), *and remains FALSE of a parser that only accepts canonical serialization* — the grammar
+  admits arbitrary spellings and the proof forces the released parser through them.
+
+* **`C4`** — the EXACT `Grammar.lean` C4 statement, proved unweakened:
+  ```lean
+  ∀ p v rest, SValue p v → DepthOk v →
+    (∀ c t, rest = c :: t → isDigitB c = false ∧ c.toNat ≠ 46 ∧ c.toNat ≠ 101 ∧ c.toNat ≠ 69) →
+    ∃ h, parseValue 0 (p ++ rest) = some ⟨(v, rest), h⟩
+  ```
+  (uses the dependent subtype return type; the inline side condition is definitionally
+  `SafeTail rest`, `DepthOk v` is `jdepth v ≤ nestingLimit`). `struct_complete` at `d = 0`
+  plus a bridge (`pv_dep`) from the plain-Option view back to the dependent `Res` return type.
+  *This theorem does NOT establish maximal munch (C3)* — the `SafeTail` side condition is
+  load-bearing and non-removable (without it `p="1"`, `rest=".5"` re-parses as `1.5`, so C4 is
+  literally false); *does NOT establish soundness (C2)*; *and does NOT establish C5 (rejection)*.
+
+* **`adequacy`** — the conjunction `C2 ∧ C4` (soundness of every accepted document AND acceptance
+  of every grammatical value with a safe tail), stated with the exact `Grammar.lean` C2 and C4
+  Props, proved as `⟨parseDoc_sound, C4⟩`.
+  *This theorem does NOT claim C3 (maximal munch) or C5 (rejection soundness)* — both are stated
+  in `Grammar.lean` and left unproved. The strongest honest reading is **adequacy relative to the
+  frozen SPEC grammar, the depth model, the deliberate semantic choices (NUM-EXACT, D-STR-1/2,
+  D-FMT), and the explicit exclusions** — NOT "a fully verified JSON parser." `#print axioms` on
+  `struct_complete`, `C4`, and `adequacy`: `[propext, Classical.choice, Quot.sound]` — Lean's
+  standard three, no `sorry`/`admit`/`native_decide`/custom axiom.

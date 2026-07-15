@@ -257,6 +257,7 @@ theorem afterIntTail {dot fp ep : Bytes} {fds : List Nat} {e : Int} {rest : Byte
     The value clause routes through `normNum_denote` (parser normaliser ∈ the `SameNum` class of
     the token) and `canonical_unique` (**A10**): the parser's canonical output and the grammar's
     canonical `n` are `SameNum`-equivalent canonicals, hence equal. The grammar is NOT narrowed. -/
+-- @attested-gap2 Cjson.Spec.scanNumber_complete
 theorem scanNumber_complete {p : Bytes} {n : JNum} {rest : Bytes}
     (h : SNumTok p n) (hs : SafeTail rest) : scanNumber (p ++ rest) = some (n, rest) := by
   cases h with

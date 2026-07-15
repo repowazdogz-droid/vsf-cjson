@@ -148,6 +148,7 @@ theorem canon_not_div_ten {l : List Nat} (hne : l ≠ []) (hlast : l.getLast? �
 
     Two canonical `JNum`s that denote the same exact decimal ARE the same `JNum`.
     Therefore "the value the grammar assigns" is well-defined, and C2 is well-posed. -/
+-- @attested-gap2 Cjson.Spec.canonical_unique
 theorem canonical_unique {n₁ n₂ : JNum}
     (h₁ : JNum.Canonical n₁) (h₂ : JNum.Canonical n₂)
     (hsame : SameNum n₁.neg (natOf n₁.digits) n₁.exp n₂.neg (natOf n₂.digits) n₂.exp) :

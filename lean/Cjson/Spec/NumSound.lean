@@ -312,6 +312,7 @@ theorem scanSign_sound (s : Bytes) :
     This does NOT establish the §S2 dispatch gate (that `+1`/`.5` are rejected at value
     position): that gate lives in `parseValue`, not in `scanNumber`, and is discharged by the
     caller. It also does NOT establish maximal munch (C3, deferred). -/
+-- @attested-gap2 Cjson.Spec.scanNumber_sound
 theorem scanNumber_sound {s : Bytes} {n : JNum} {r : Bytes}
     (h : scanNumber s = some (n, r)) : ∃ p, s = p ++ r ∧ SNumTok p n := by
   simp only [scanNumber] at h

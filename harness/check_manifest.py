@@ -33,13 +33,17 @@ chk("Cjson" in main_imports, "Main.lean imports Cjson (so `lake build` reaches t
 for m in MAN["proof_modules"]:
     chk(m in root_imports, f"proof module in default build target: {m}")
 
-# 2. theorem count
-lean_files = sorted(glob.glob(str(ROOT / "lean/Cjson/**/*.lean"), recursive=True)) + \
-             [str(ROOT / "lean/Main.lean")]
-tc = sum(1 for f in lean_files for ln in open(f)
+# 2. theorem count — RELEASED modules only (proof_modules + root + Main). The GAP-2 research
+#    chain under lean/Cjson/Spec/ is NOT part of the released artifact and is counted/attested
+#    separately by harness/gap2/check_gap2.py against release/gap2_manifest.json. Counting it
+#    here (the old `Cjson/**/*.lean` glob) conflated the two and broke the moment the spec
+#    chain landed; the count must track exactly the released, attested set.
+released_files = [str(ROOT / "lean" / (m.replace(".", "/") + ".lean")) for m in MAN["proof_modules"]]
+released_files += [str(ROOT / "lean/Cjson.lean"), str(ROOT / "lean/Main.lean")]
+tc = sum(1 for f in released_files for ln in open(f)
          if ln.startswith("theorem ") or ln.startswith("@[simp] theorem "))
 chk(tc == MAN["expected_theorem_count"],
-    f"theorem count {tc} == manifest {MAN['expected_theorem_count']}")
+    f"released theorem count {tc} == manifest {MAN['expected_theorem_count']}")
 
 # 3. pinned inputs
 for rel, want in MAN["pinned_inputs"]["oracle"]["files"].items():

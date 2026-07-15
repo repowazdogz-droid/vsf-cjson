@@ -1,8 +1,14 @@
 # ADEQUACY_REPORT.md — GAP-2, branch `gap2-adequacy-proof`
 
-**Target: C2 ∧ C4 (adequacy). Status: A10, number soundness, string-body soundness, STRUCTURAL
-SOUNDNESS and C2 (value soundness) all PROVED. C4 (completeness) not started — deferred to the
-next phase, as instructed. C3 (maximal munch) intentionally deferred.**
+**Target: C2 ∧ C4 (adequacy). Status: ADEQUACY PROVED. A10, number soundness, string-body
+soundness, STRUCTURAL SOUNDNESS, C2 (value soundness), STRUCTURAL COMPLETENESS, C4 (completeness)
+and `adequacy` (`C2 ∧ C4`) all PROVED (2026-07-15). C3 (maximal munch) and C5 (rejection)
+intentionally NOT proved — out of the frozen scope; adequacy does not depend on them.**
+
+**Strongest honest claim: adequacy relative to the frozen SPEC grammar, the depth model, the
+deliberate semantic choices (NUM-EXACT, D-STR-1/2, D-FMT) and the explicit exclusions — NOT
+"a fully verified JSON parser."** `#print axioms` on `struct_complete`, `C4`, `adequacy`:
+`[propext, Classical.choice, Quot.sound]` (Lean's standard three).
 
 v1.0.1 is untouched. Nothing here is released. Zero `sorry`, zero custom axioms, no
 `native_decide`, no Mathlib.
@@ -34,7 +40,9 @@ SPEC.md ──(written first, oracle-verified)──> Cjson/Spec/Grammar.lean   
                                                         │
                                     Cjson/Spec/StructSound.lean  structural ✅ + C2 ✅
                                                         │
-                                                    C2 ✅ ; C4      ✗ not started (next phase)
+                                    Cjson/Spec/StructComplete.lean  structural ✅ + C4 ✅ + adequacy ✅
+                                                        │
+                                                    C2 ✅ ; C4 ✅ ; adequacy = C2 ∧ C4 ✅
 ```
 
 The load-bearing design decision, and the one a reviewer should check first: **the grammar's
@@ -70,8 +78,11 @@ scanNumber_sound ✅, parseStrBody_sound' ✅
                           │                                    (pv_sound/pe_sound/pm_sound)
                           └────────────────────────────────> parseDoc_sound ✅  (C2)
                                                         │
-                                                    C2 ✗ ──> C1 ✗, C5 ✗
-                                                    C4 ✗
+scanNumber_complete ✅, parseStrBody_complete ✅ ─┐    │
+  SValue.rec (3 motives, 13 cases) + _gen assembly ┼──> struct_complete ✅ ──> C4 ✅ ──┐
+  safeTail_ws ✅, pv_dep ✅ ───────────────────────┘                                   ├─> adequacy ✅
+                                                    C2 ✅ ─────────────────────────────┘  (C2 ∧ C4)
+                                                    C1 ✗, C5 ✗, C3 ✗  (out of frozen scope)
 ```
 
 ## 3. `#print axioms`
@@ -89,10 +100,17 @@ scanNumber_sound ✅, parseStrBody_sound' ✅
 'Cjson.Spec.scanNumber_sound'   depends on axioms: [propext, Classical.choice, Quot.sound]
 'Cjson.Spec.hex4_isHex'         depends on axioms: [propext, Quot.sound]
 'Cjson.Spec.enc_eq'             depends on axioms: [propext]
+'Cjson.Spec.scanNumber_complete'   depends on axioms: [propext, Classical.choice, Quot.sound]
+'Cjson.Spec.parseStrBody_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Cjson.Spec.struct_complete'    depends on axioms: [propext, Classical.choice, Quot.sound]
+'Cjson.Spec.C4'                 depends on axioms: [propext, Classical.choice, Quot.sound]
+'Cjson.Spec.adequacy'           depends on axioms: [propext, Classical.choice, Quot.sound]
 ```
 
-Lean's standard axioms only. **No project axiom. No `sorry`.** `Grammar.lean`'s five candidate
-theorems (C1–C5) are stated as `Prop`-valued `example`s: they elaborate, and **none is asserted**.
+Lean's standard axioms only. **No project axiom. No `sorry`, no `admit`, no `native_decide`, no
+Mathlib.** `Grammar.lean`'s five candidate theorems (C1–C5) are stated as `Prop`-valued
+`example`s: they elaborate, and **none is asserted**. `C2` (`parseDoc_sound`), `C4` and their
+conjunction `adequacy` are now proved as named theorems with the **exact** `example` statements.
 
 ## 4. Remaining proof obligations
 
@@ -101,12 +119,13 @@ theorems (C1–C5) are stated as `Prop`-valued `example`s: they elaborate, and *
 | 1 | `parseStrBody_sound` | ✅ **PROVED** (architecture 1, previous run). |
 | 2 | `SValue`/`SElems`/`SMembers` soundness | ✅ **PROVED.** Single `Nat.rec` on a length bound with a 3-stage successor step (`hV_step`, `hE_step`, `hM_step`). The same-length `parseElems → parseValue` call is closed by establishing value soundness at `n+1` *before* element soundness at `n+1`; the strict decrease is recovered from `SValue_ne_nil`, not the parser's stripped subtype. |
 | 3 | **C2** (`parseDoc_sound`) | ✅ **PROVED** as a direct consequence of `pv_sound` plus `skipBom_split`/`skipWs_split` and the released `parseDoc_depth`. |
-| 4 | **C1**, **C5** | corollaries of C2; **not built** (out of frozen scope this run). |
-| 5 | **C4** (completeness) | **not started — the next phase's target.** Mutual induction on `SValue`, mirrors `roundtrip_value`. This is the remaining half of adequacy. |
-| 6 | **C3** (maximal munch) | **INTENTIONALLY DEFERRED** — out of the frozen scope. It needs a *negative* statement (no longer grammatical prefix exists) and is a different, harder induction. C2 ∧ C4 do not depend on it. |
+| 4 | **C4** (completeness) | ✅ **PROVED** (2026-07-15). `struct_complete`: ONE mutual structural induction on the grammar derivation (`SValue.rec`, 3 motives, 13 cases), threading `d + jdepth v ≤ nestingLimit`, `SafeTail` on the value motive; number/string leaves = `scanNumber_complete`/`parseStrBody_complete`; recursion assembled by whitespace-tolerant `_gen` lemmas (the released `roundtrip_value` assembly lemmas are canonical-specific — see reuse audit, `INDEPENDENCE_RISK.md` Risk 5). `C4` is the EXACT `Grammar.lean` statement (dependent `∃ h, parseValue 0 (p ++ rest) = some ⟨(v, rest), h⟩`), proved unweakened. |
+| 5 | **adequacy** (`C2 ∧ C4`) | ✅ **PROVED** as `⟨parseDoc_sound, C4⟩`. |
+| 6 | **C1**, **C5** | corollaries of C2; **not built** (out of frozen scope this run). |
+| 7 | **C3** (maximal munch) | **INTENTIONALLY NOT PROVED** — out of the frozen scope. It needs a *negative* statement (no longer grammatical prefix exists) and is a different, harder induction. C2 ∧ C4 do not depend on it. |
 
-Revised estimate for the remainder: **~2,000–2,700 lines**. **The remaining obligations are
-structurally understood, but their difficulty and truth remain unestablished until mechanised.**
+**Adequacy (`C2 ∧ C4`) is mechanised.** C3 and C5 remain out of scope by instruction; the honest
+ceiling is adequacy relative to the frozen grammar, depth model, semantic choices and exclusions.
 
 ## 5. What the proof certifies (today)
 
@@ -132,22 +151,22 @@ structurally understood, but their difficulty and truth remain unestablished unt
 
 ## 6. What it explicitly does NOT certify
 
-* **Completeness (C4).** Every lemma proved runs parser → grammar. **Nothing yet runs
-  grammar → parser.** Because §S5.1 accepts trailing garbage, `SAccepts` is an existential over
-  prefixes, so C2 *alone* is satisfiable by a parser that accepts only `null`. **C2 is one half of
-  adequacy; C4 is the other and is not started.** The GAP-2 adequacy gap from v1.0.1 is therefore
-  **still open** — narrowed to completeness.
-* **Rejection properties.** C5 (`¬SAccepts s → parseDoc s = none`) is a corollary of C1/C2 but was
-  **not built** this run (frozen scope). Nothing here proves the parser *rejects* a non-grammatical
-  input; that reading of "the parser accepts the right language" awaits C4 + C5.
-* **The §S2 dispatch gate as a rejection.** C2 *uses* the gate as a discharged hypothesis; it does
-  not prove `+1`/`.5` are rejected. That is a completeness-side statement.
-* **Not maximal munch** (C3, deferred by design).
-* **Not completeness** (C4). Every lemma proved so far runs parser → grammar. Nothing yet runs
-  grammar → parser, and **soundness without completeness is nearly vacuous here**, because §S5.1
-  accepts trailing garbage: a parser that accepted only `null` would be sound.
-* **Not arrays or objects.** Structural soundness is not started, so nothing yet connects
-  `parseValue`/`parseDoc` to `SValue`/`SDoc`.
+* **Completeness (C4) is now PROVED** — this bullet no longer applies. `struct_complete`/`C4` run
+  **grammar → parser** for every grammatical value (arbitrary spelling: interior whitespace,
+  non-canonical numbers, mixed-case `\uXXXX`, valid surrogate pairs). Together with C2 this closes
+  the GAP-2 adequacy gap from v1.0.1, **relative to the frozen grammar and the exclusions below**.
+* **Rejection properties (C5).** `¬SAccepts s → parseDoc s = none` is a corollary of C1/C2 but was
+  **not built** this run (frozen scope). Adequacy (`C2 ∧ C4`) does not require it. Nothing here
+  proves the parser *rejects* a non-grammatical input by a direct negative statement.
+* **Maximal munch (C3).** **INTENTIONALLY NOT PROVED.** C4's `SafeTail` side condition is
+  load-bearing precisely because C4 does *not* prove maximal munch — it relies on the caller's
+  tail being non-number-continuing rather than proving no-longer-grammatical-prefix-exists. Without
+  `SafeTail`, C4 is literally false (`p="1"`, `rest=".5"` → `1.5`).
+* **The §S2 dispatch gate as a rejection.** C2 *uses* the gate as a discharged hypothesis; C4 uses
+  it as a grammar premise. Neither proves `+1`/`.5` are rejected — that is a C5-side statement.
+* **UTF-8 validity, IEEE doubles, the compiled binary.** Unchanged from v1.0.1 (GAP-EXTRACT):
+  every theorem is about the Lean function; bytes ≥ 0x80 pass through unexamined; numbers are exact
+  decimals, not `Float`.
 * **Nothing empirical is being cited as proof.** The 55,589-input hunt from the research phase is
   evidence that no counterexample exists; it is not, and is nowhere claimed to be, a proof.
 
@@ -187,19 +206,22 @@ satisfy T0–T3 exactly as well as this one does."*
   C4 forces the parser to accept everything the language contains.
 
 So the pair is the right target, and **it remains the right target** — this branch has not
-weakened it. **C2 is now PROVED; C4 is not.** Half of adequacy is mechanised. The remaining
-obligation (C4 completeness) is structurally understood — a mutual induction on `SValue` mirroring
-`roundtrip_value` — but its difficulty and truth remain unestablished until mechanised.
+weakened it. **C2 is PROVED, C4 is PROVED, and `adequacy = C2 ∧ C4` is PROVED** (2026-07-15).
+Both halves are mechanised.
 
-**Assessment.** The gate the research phase set (A10) has passed. The obligation that carried the
-real intellectual risk (keeping the grammar's number semantics independent of the parser, and
-still proving the parser meets them) has been **discharged**. What remains is large and is now *bounded* in shape — two known induction principles, 31 and 26
-cases, with every supporting lemma in place. **But the remaining obligations are structurally
-understood, not routine: their difficulty and truth remain unestablished until mechanised.**
+**Assessment.** The gate the research phase set (A10) passed; the obligation that carried the real
+intellectual risk (keeping the grammar's number semantics independent of the parser, and still
+proving the parser meets them) was discharged in the number leaves; and the completeness half
+closed by ONE mutual structural induction on the grammar derivation, exactly as designed — no
+staging, `SafeTail` on the value motive only. The reuse audit surfaced a genuine finding (the
+v1.0.1 assembly lemmas are canonical-specific), handled by proving whitespace-tolerant
+generalizations rather than narrowing the grammar (`INDEPENDENCE_RISK.md` Risk 5).
 
-**The adequacy gap is not closed.** It is the only thing between this artifact and a defensible
-use of the word "verified". The path to closing it is structurally understood — but its
-difficulty and truth remain unestablished until mechanised.
+**The GAP-2 adequacy gap is now closed — relative to the frozen grammar, the depth model, the
+deliberate semantic choices, and the explicit exclusions (C3, C5, UTF-8 validity, IEEE doubles,
+the compiled binary).** That qualified adequacy — NOT "a fully verified JSON parser" — is the
+strongest honest claim. C3 (maximal munch) and C5 (rejection) remain the distance between this and
+an unqualified use of the word.
 
 
 ---
@@ -234,8 +256,8 @@ Full design in **`C4_ARCHITECTURE.md`**. Summary:
 * **Estimated size:** ~1000–1400 lines; top risk `scanNumber_complete` (exact-consumption of an
   arbitrary `SNumTok`). Proposed thin slice: `null`, then empty array.
 
-**C4 remains unproved.** This run designed its architecture; the difficulty and truth of the two
-hard leaf lemmas remain unestablished until mechanised.
+**C4 is now PROVED (2026-07-15).** The architecture designed here was followed without change; the
+one correction is recorded below in §10 (the reuse audit).
 
 ### C4 leaf progress (2026-07-15): `scanNumber_complete` PROVED
 
@@ -268,3 +290,31 @@ spelling-freedom is preserved, not collapsed to the serializer's canonical form.
 work is the structural mutual induction lifting these (plus the literal/array/object cases) to
 `parseValue`/`parseDoc` — whose assembly lemmas already exist in v1.0.1 (`pv_arr_cons`, `pe_cons`,
 `pm_cons`, …). The §8 architecture remains unchanged; full structural completeness can now begin.
+### C4 CLOSED (2026-07-15): `parseStrBody_complete`, `struct_complete`, `C4`, `adequacy`
+
+The remaining string leaf and the structural induction are done, and adequacy is assembled.
+
+* **`parseStrBody_complete`** — the other hard leaf, by direct induction on `SChars.rec` (5
+  constructors), for arbitrary grammatical bodies (escaped/unescaped `/`, mixed-case `\uXXXX`,
+  valid surrogate pairs, raw bytes ≥ 0x80, no UTF-8 validation). Reuses the released reverse
+  escape equations + the StrSound `enc_eq` bridge.
+* **`struct_complete`** — ONE mutual structural induction on `SValue.rec` (3 motives, 13 cases),
+  `d + jdepth v ≤ nestingLimit` threaded, `SafeTail` on the value motive only. Number/string leaves
+  as above; recursion assembled by whitespace-tolerant `_gen` lemmas.
+* **`C4`** — `struct_complete` at `d = 0` + a bridge (`pv_dep`) from the plain-Option view back to
+  the dependent `Res` subtype return type. Proves the EXACT `Grammar.lean` statement.
+* **`adequacy`** — `⟨parseDoc_sound, C4⟩`.
+
+**The reuse audit's one correction (§10 promise, INDEPENDENCE_RISK.md Risk 5):** the architecture
+run (§9) claimed the v1.0.1 structural assembly lemmas were "already proven" and reusable. **That
+was wrong** — they are *canonical-specific* (they assume `skipWs (c::t) = c::t`, i.e. no interior
+whitespace, because `serialize` emits none). Reusing them would have proved a weaker theorem, true
+only of canonical spellings. Whitespace-tolerant generalizations (`pv_arr_cons_gen`, …,
+`pm_cons_gen`, `pe_last_gen`, …) were proved instead; the final theorem is **false of a
+canonical-only parser**. Only the *parametric leaf* lemmas (`pv_null/true/false`, `pv_num_known`,
+`pv_str_known`) were reused as-is. This is the single substantive deviation from the §9 design, and
+it strengthened the result rather than weakening it.
+
+`#print axioms` on `struct_complete` / `C4` / `adequacy` → `[propext, Classical.choice, Quot.sound]`.
+Zero `sorry`/`admit`/`native_decide`/custom axiom/Mathlib. v1.0.1 byte-identical (only `Spec/*`
+touched: new `StructComplete.lean` + one import line in `Spec.lean`).

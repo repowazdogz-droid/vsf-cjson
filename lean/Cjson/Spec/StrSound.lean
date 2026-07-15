@@ -297,6 +297,7 @@ theorem parseStrBody_sound : ∀ (n : Nat) (s : Bytes) (v r : Bytes), s.length �
           exact ⟨c :: p, by simp [hp], by rw [← hv]; exact SChars.plain ⟨h34, h92⟩ hc⟩
 
 /-- The form actually needed downstream. -/
+-- @attested-gap2 Cjson.Spec.parseStrBody_sound'
 theorem parseStrBody_sound' {s : Bytes} {v r : Bytes} (h : parseStrBody s = some (v, r)) :
     ∃ p, s = p ++ (34 :: r) ∧ SChars p v :=
   parseStrBody_sound s.length s v r (Nat.le_refl _) h
