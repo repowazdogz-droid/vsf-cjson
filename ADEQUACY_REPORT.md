@@ -200,3 +200,39 @@ understood, not routine: their difficulty and truth remain unestablished until m
 **The adequacy gap is not closed.** It is the only thing between this artifact and a defensible
 use of the word "verified". The path to closing it is structurally understood — but its
 difficulty and truth remain unestablished until mechanised.
+
+
+---
+
+## 9. C4 completeness — architecture assessment (design run, no proof code)
+
+Full design in **`C4_ARCHITECTURE.md`**. Summary:
+
+* **C4 statement** (`Grammar.lean:243`): `SValue p v → DepthOk v → SafeTail rest →
+  ∃ h, parseValue 0 (p ++ rest) = some ⟨(v, rest), h⟩`. The inline tail condition is
+  definitionally `SafeTail` (`Num.lean:133`).
+* **Truth: TRUE and well-posed.** No missing premise; nothing to weaken. `SafeTail` is exactly
+  calibrated (stops number extension; permits trailing garbage; byte-class only, not circular).
+  `DepthOk` (≤1000) exactly matches parser depth-0 acceptance. A10 supplies number-value
+  uniqueness. Confidence probes (parser binary) all consistent; **no counterexample**, so no
+  `C4_COUNTEREXAMPLE.md`.
+* **Central finding:** `roundtrip_value` (v1.0.1, `RoundTrip.lean:469–481`) already proves C4's
+  *exact* shape (`SafeTail` + `d + jdepth v ≤ nestingLimit`) **specialised to `serialize v`**.
+  C4 = that theorem generalised from the canonical rendering to an arbitrary grammatical `p`. The
+  structural assembly lemmas (`pv_arr_cons`, `pe_cons`, `pm_cons`, …) are therefore **already
+  proven**; the two genuinely new pieces are the leaf lemmas **`scanNumber_complete`** and
+  **`parseStrBody_complete`** (converses of the soundness scanners, for *arbitrary* grammatical
+  spellings, not just the canonical one).
+* **Recommended architecture:** one mutual structural induction on `SValue.rec` (3 motives), depth
+  threaded as `d + jdepth ≤ nestingLimit`, `SafeTail` on the value motive only (element/member
+  motives self-terminate on `]`/`}`). No staging (unlike soundness) — the grammar derivation is the
+  well-founded measure, so the same-length hazard that forced staging in soundness does not arise.
+* **Independence:** preserved by construction (views only; no parser/grammar change; no witness
+  carried). The one risk is the `scanNumber_complete` shortcut (proving it only for the canonical
+  rendering would narrow the grammar's byte-freedom) — to be avoided, and recorded in
+  `INDEPENDENCE_RISK.md` only if reached for.
+* **Estimated size:** ~1000–1400 lines; top risk `scanNumber_complete` (exact-consumption of an
+  arbitrary `SNumTok`). Proposed thin slice: `null`, then empty array.
+
+**C4 remains unproved.** This run designed its architecture; the difficulty and truth of the two
+hard leaf lemmas remain unestablished until mechanised.
