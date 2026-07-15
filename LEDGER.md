@@ -379,3 +379,23 @@ released; v1.0.1 is untouched.
   *These do NOT establish anything about grammaticality on their own*; `SValue_ne_nil` is what
   recovers the strict-decrease measure from the grammar rather than from the parser's stripped
   result subtype.
+
+* **`scanNumber_complete`** — `SNumTok p n → SafeTail rest → scanNumber (p ++ rest) = some (n, rest)`.
+  For an *arbitrary* grammatical number spelling `p` (the unmodified `SNumTok`: `01`, `1.0`, `1e2`,
+  `.5`, arbitrary leading/trailing zeros and exponent forms), the parser's scanner consumes exactly
+  `p` and returns the grammar's canonical `n`, leaving `rest`. The value clause routes through
+  `normNum_denote` + `SameNum_symm`/`SameNum_trans` + **A10 (`canonical_unique`)**; the grammar is
+  NOT narrowed to canonical renderings.
+  *This theorem does NOT establish maximal munch* (C3, deferred — it relies on `SafeTail` to stop
+  over-consumption rather than proving no-longer-prefix-exists), *does NOT establish the §S2 dispatch
+  gate* (that lives in `parseValue`, not `scanNumber`), *and does NOT establish completeness of the
+  string or structural cases* (separate leaves).
+
+* **`SameNum_symm` / `SameNum_trans`** — the grammar's number-value equivalence `SameNum` is symmetric
+  and transitive. *These do NOT establish it is decidable or a full setoid API*; only the two facts
+  needed to bridge `normNum`'s output and the grammar's `n` through the shared `(M,E)` class.
+
+* **`scanDigits_complete` / `scanFrac_complete` / `scanExp_complete` / `scanExpDigits_complete` /
+  `scanSign_complete` / digit bridge (`Digits_eq_digitBytes`, `Digits_lt10`)** — each converse scanner
+  consumes exactly its grammatical piece given the appropriate tail condition.
+  *These do NOT establish the scanners reject anything*; they are one-directional (grammar → scan).

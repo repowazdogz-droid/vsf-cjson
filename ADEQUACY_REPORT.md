@@ -236,3 +236,19 @@ Full design in **`C4_ARCHITECTURE.md`**. Summary:
 
 **C4 remains unproved.** This run designed its architecture; the difficulty and truth of the two
 hard leaf lemmas remain unestablished until mechanised.
+
+### C4 leaf progress (2026-07-15): `scanNumber_complete` PROVED
+
+The highest-risk C4 leaf identified in the architecture run is **done**:
+`scanNumber_complete : SNumTok p n → SafeTail rest → scanNumber (p ++ rest) = some (n, rest)`,
+for arbitrary grammatical spellings (grammar unmodified). `#print axioms` → `[propext,
+Classical.choice, Quot.sound]`. Zero `sorry`. Built via: (1) `SameNum` symm/trans algebra;
+(2) a digit bridge (`Digits ip ids → ip = digitBytes ids`) reusing the released
+`scanDigits_digitBytes`; (3) converse completeness for each scanner (`scanSign`, `scanDigits`,
+`scanFrac`, `scanExpDigits`, `scanExp`); (4) assembly, with the value closed by
+`normNum_denote` + `SameNum_symm`/`_trans` + **A10**. Independence preserved: the hypothesis is
+the unchanged `SNumTok`, and no grammar/parser definition was touched.
+
+Remaining for C4: `parseStrBody_complete` (the other leaf) and the structural mutual induction
+(assembly lemmas already exist in v1.0.1). C4 is expected to close via the architecture in §8–10
+unchanged, now that its hardest leaf is proved.
