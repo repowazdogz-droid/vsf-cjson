@@ -7,6 +7,15 @@ next phase, as instructed. C3 (maximal munch) intentionally deferred.**
 v1.0.1 is untouched. Nothing here is released. Zero `sorry`, zero custom axioms, no
 `native_decide`, no Mathlib.
 
+**Building the GAP-2 proofs.** The released root `lean/Cjson.lean` is kept **byte-identical to
+v1.0.1** (it does NOT import the Spec modules), so a plain `lake build` compiles only the released
+artifact. The GAP-2 chain has its own root `lean/Cjson/Spec.lean`; build and axiom-check it with:
+
+```
+cd lean && lake build Cjson.Spec            # compiles Grammar, Uniqueness, NumSound, StrSound, StructSound
+lake env lean <file with #print axioms>     # audits canonical_unique … parseDoc_sound
+```
+
 ---
 
 ## 1. Proof architecture
