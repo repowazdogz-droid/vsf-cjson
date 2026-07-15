@@ -356,3 +356,26 @@ released; v1.0.1 is untouched.
   that is neither a simple escape nor `u` is rejected.
   *These theorems do NOT establish anything about the grammar* — they are facts about the parser
   alone, and are the only place where the parser's byte-level branch structure is exposed.
+
+* **`struct_sound` / `pv_sound` / `pe_sound` / `pm_sound`** — establish STRUCTURAL SOUNDNESS:
+  every input the released `parseValue`/`parseElems`/`parseMembers` accepts, the consumed bytes
+  form a fragment (value / element-list-with-`]` / member-list-with-`}`) that the independent
+  grammar (`SValue`/`SElems`/`SMembers`) assigns exactly the returned AST.
+  *These theorems do NOT establish completeness* (that every grammatical input is accepted — C4),
+  *do NOT establish maximal munch* (C3, deferred), *and do NOT bound nesting depth* — the
+  parser's depth check only makes the hypothesis harder to satisfy; the grammar `SValue`/`SElems`/
+  `SMembers` carry no depth bound (that lives at the document level).
+
+* **`parseDoc_sound` (C2)** — establishes DOCUMENT-LEVEL VALUE SOUNDNESS:
+  `parseDoc s = some v → SDoc s v`, i.e. `s` decomposes as `bom ++ ws ++ valuePrefix ++ trailing`
+  with the value prefix denoting exactly `v` under the SPEC grammar, and `jdepth v ≤ 1000`.
+  *This theorem does NOT establish completeness (C4)* — it says every accepted document is
+  grammatical, NOT that every grammatical document is accepted; because SPEC §S5.1 accepts
+  trailing garbage, C2 alone is satisfiable by a lazy parser, so C2 ∧ C4 (not C2 alone) is the
+  adequacy target. *It also does NOT establish the §S2 dispatch gate as a rejection property*
+  (it uses the gate as a hypothesis, discharged by the parser having accepted).
+
+* **`skipWs_split` / `skipBom_split` / `isWs_IsWs` / `SValue_ne_nil` / `gate_of`** — bridge lemmas.
+  *These do NOT establish anything about grammaticality on their own*; `SValue_ne_nil` is what
+  recovers the strict-decrease measure from the grammar rather than from the parser's stripped
+  result subtype.

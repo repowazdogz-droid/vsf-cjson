@@ -1,7 +1,8 @@
 # ADEQUACY_REPORT.md — GAP-2, branch `gap2-adequacy-proof`
 
-**Target: C2 ∧ C4 (adequacy). Status: A10 proved; number soundness proved; STRING-BODY SOUNDNESS
-PROVED; structural soundness, C2 and C4 not started.**
+**Target: C2 ∧ C4 (adequacy). Status: A10, number soundness, string-body soundness, STRUCTURAL
+SOUNDNESS and C2 (value soundness) all PROVED. C4 (completeness) not started — deferred to the
+next phase, as instructed. C3 (maximal munch) intentionally deferred.**
 
 v1.0.1 is untouched. Nothing here is released. Zero `sorry`, zero custom axioms, no
 `native_decide`, no Mathlib.
@@ -22,9 +23,9 @@ SPEC.md ──(written first, oracle-verified)──> Cjson/Spec/Grammar.lean   
                                                         │
                                     Cjson/Spec/StrSound.lean     strings ✅ (body + bridges)
                                                         │
-                                              structural soundness  ✗ not started
+                                    Cjson/Spec/StructSound.lean  structural ✅ + C2 ✅
                                                         │
-                                                    C2, C4          ✗ not started
+                                                    C2 ✅ ; C4      ✗ not started (next phase)
 ```
 
 The load-bearing design decision, and the one a reviewer should check first: **the grammar's
@@ -51,12 +52,14 @@ ofDigits_natOf ✅ ───┼─> scanExpDigits_sound ✅ ─┼──> scanNu
 scanSign_sound ✅ ───┘         └─> scanExp_sound ✅┘      │
 normNum_canonical (v1.0.1) ───────────────────────────────┘
 
-hex4_isHex ✅, enc_eq ✅, not_surrogate ✅,
-isHigh_range ✅, isLow_range ✅ ─┬─> parseStrBody_sound ✅  (STRING-BODY SOUNDNESS)
-psb_esc ✅, psb_bad_esc ✅ ──────┘                       │
-parseStrBody_other (v1.0.1) ────────────────────────────┘
+hex4_isHex ✅, enc_eq ✅, surrogate-range ✅ ─> parseStrBody_sound ✅  (STRING-BODY SOUNDNESS)
                                                         │
-                                             SValue/SElems/SMembers soundness  ✗ (live blocker)
+skipWs_split ✅, skipBom_split ✅, SValue_ne_nil ✅, gate_of ✅
+scanNumber_sound ✅, parseStrBody_sound' ✅
+                          │
+  staged Nat.rec:  hV_step ✅ ── hE_step ✅ ── hM_step ✅  ──> struct_sound ✅
+                          │                                    (pv_sound/pe_sound/pm_sound)
+                          └────────────────────────────────> parseDoc_sound ✅  (C2)
                                                         │
                                                     C2 ✗ ──> C1 ✗, C5 ✗
                                                     C4 ✗
@@ -86,11 +89,11 @@ theorems (C1–C5) are stated as `Prop`-valued `example`s: they elaborate, and *
 
 | # | obligation | status |
 |---|---|---|
-| 1 | `parseStrBody_sound` | ✅ **PROVED** (architecture 1: induction on input length, *not* the 31-case `parseStrBody.induct`). `BLOCKER.md` records the resolution. |
-| 2 | `SValue` / `SElems` / `SMembers` soundness | **not started — the live blocker.** A design constraint is now known: `parseValue` calls `parseElems` on a **strictly shorter** input, but `parseElems` calls `parseValue` on an input of the **same** length. A plain length induction therefore does not close. The step must establish `pv` at length `n+1` (using the IH's `pe` at `≤ n`), *then* `pe`/`pm` at `n+1` from the `pv` just established. |
-| 3 | **C2** (value soundness) | not started; follows from 1 + 2 plus a document-level lift. |
-| 4 | **C1**, **C5** | corollaries of C2. |
-| 5 | **C4** (completeness) | not started; mutual induction on `SValue`, mirrors `roundtrip_value`. ~600–900 lines. |
+| 1 | `parseStrBody_sound` | ✅ **PROVED** (architecture 1, previous run). |
+| 2 | `SValue`/`SElems`/`SMembers` soundness | ✅ **PROVED.** Single `Nat.rec` on a length bound with a 3-stage successor step (`hV_step`, `hE_step`, `hM_step`). The same-length `parseElems → parseValue` call is closed by establishing value soundness at `n+1` *before* element soundness at `n+1`; the strict decrease is recovered from `SValue_ne_nil`, not the parser's stripped subtype. |
+| 3 | **C2** (`parseDoc_sound`) | ✅ **PROVED** as a direct consequence of `pv_sound` plus `skipBom_split`/`skipWs_split` and the released `parseDoc_depth`. |
+| 4 | **C1**, **C5** | corollaries of C2; **not built** (out of frozen scope this run). |
+| 5 | **C4** (completeness) | **not started — the next phase's target.** Mutual induction on `SValue`, mirrors `roundtrip_value`. This is the remaining half of adequacy. |
 | 6 | **C3** (maximal munch) | **INTENTIONALLY DEFERRED** — out of the frozen scope. It needs a *negative* statement (no longer grammatical prefix exists) and is a different, harder induction. C2 ∧ C4 do not depend on it. |
 
 Revised estimate for the remainder: **~2,000–2,700 lines**. **The remaining obligations are
@@ -110,18 +113,26 @@ structurally understood, but their difficulty and truth remain unestablished unt
   the independence contract was actually under pressure. It held.
 * **String-body soundness.** For every input `parseStrBody` accepts, the consumed bytes form a
   string body that the independent `SChars` grammar decodes to exactly the byte string returned.
-
   Not vacuous, and demonstrably so: **this theorem is FALSE of the C oracle**, which accepts
-  `"\uZZZZ"` as U+0000 while `SChars.uni` demands four valid hex digits. A parser with cJSON's
-  D-STR-1 bug could not satisfy it.
+  `"\uZZZZ"` as U+0000 while `SChars.uni` demands four valid hex digits.
+* **Structural soundness + C2.** For every document `parseDoc` accepts, `s` decomposes as
+  `bom ++ ws ++ valuePrefix ++ trailing` with the value prefix denoting exactly the returned `v`
+  under the independent SPEC grammar, and `jdepth v ≤ 1000`. This is the piece that finally
+  connects the parser's *top-level entry point* to the grammar — every earlier lemma was about a
+  scanner or a component.
 
 ## 6. What it explicitly does NOT certify
 
-* **Nothing about which inputs the parser accepts.** C1, C2 and C5 are all unproved. The GAP-2
-  adequacy gap from v1.0.1 is **still open**. Number soundness is a statement about
-  `scanNumber`, a component; it says nothing about `parseDoc`.
-* **Not the §S2 dispatch gate.** That `+1` and `.5` are rejected at value position is enforced in
-  `parseValue`, not `scanNumber`. Unproved.
+* **Completeness (C4).** Every lemma proved runs parser → grammar. **Nothing yet runs
+  grammar → parser.** Because §S5.1 accepts trailing garbage, `SAccepts` is an existential over
+  prefixes, so C2 *alone* is satisfiable by a parser that accepts only `null`. **C2 is one half of
+  adequacy; C4 is the other and is not started.** The GAP-2 adequacy gap from v1.0.1 is therefore
+  **still open** — narrowed to completeness.
+* **Rejection properties.** C5 (`¬SAccepts s → parseDoc s = none`) is a corollary of C1/C2 but was
+  **not built** this run (frozen scope). Nothing here proves the parser *rejects* a non-grammatical
+  input; that reading of "the parser accepts the right language" awaits C4 + C5.
+* **The §S2 dispatch gate as a rejection.** C2 *uses* the gate as a discharged hypothesis; it does
+  not prove `+1`/`.5` are rejected. That is a completeness-side statement.
 * **Not maximal munch** (C3, deferred by design).
 * **Not completeness** (C4). Every lemma proved so far runs parser → grammar. Nothing yet runs
   grammar → parser, and **soundness without completeness is nearly vacuous here**, because §S5.1
@@ -152,7 +163,7 @@ Two, both recorded in `INDEPENDENCE_RISK.md`. **Neither was made.**
    This is why the string and structural proofs are *blocked and slow* rather than *fast and
    worthless*.
 
-## 8. Does C2 ∧ C4 genuinely close the v1.0.1 adequacy gap?
+## 8. Progress toward closing the v1.0.1 adequacy gap
 
 **Yes — and nothing short of both does.**
 
@@ -167,9 +178,9 @@ satisfy T0–T3 exactly as well as this one does."*
   C4 forces the parser to accept everything the language contains.
 
 So the pair is the right target, and **it remains the right target** — this branch has not
-weakened it. What has changed is the honest cost estimate: the research phase said ~2,000–2,500
-lines; with the return-type shortcut ruled out on independence grounds, it is ~2,000–2,700 lines
-of *mechanical* work on top of what is proved here.
+weakened it. **C2 is now PROVED; C4 is not.** Half of adequacy is mechanised. The remaining
+obligation (C4 completeness) is structurally understood — a mutual induction on `SValue` mirroring
+`roundtrip_value` — but its difficulty and truth remain unestablished until mechanised.
 
 **Assessment.** The gate the research phase set (A10) has passed. The obligation that carried the
 real intellectual risk (keeping the grammar's number semantics independent of the parser, and

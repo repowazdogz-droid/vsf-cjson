@@ -119,3 +119,27 @@ Structural soundness for values, arrays and objects — see `ADEQUACY_REPORT.md`
 **strictly shorter** input, but `parseElems` calls `parseValue` on an input of the **same**
 length, so a plain length induction does not close. The step must prove `pv` at length `n+1`
 first (using the IH's `pe` at `≤ n`), then `pe`/`pm` at `n+1` using the `pv` just established.
+
+
+---
+
+# RESOLUTION 2 — structural soundness (2026-07-15)
+
+The "next independent route" recorded above (structural soundness) is now **PROVED**, and so is
+**C2**. The design constraint anticipated in the previous run was correct and was handled exactly
+as sketched:
+
+* Confirmed against the real code: the only same-length recursive call is `parseElems → parseValue`;
+  every other recursive call is on a strictly shorter input.
+* A single `Nat.rec` on a length bound, with a **staged successor step**:
+  `hV_step` (value soundness at `n+1`, from the IH's elem/member soundness at `≤ n`),
+  then `hE_step` (element soundness at `n+1`, using `hV_step` for the same-length value call),
+  then `hM_step` (member soundness at `n+1`, using only the IH).
+* The strict-decrease measure that the `pv`/`pe`/`pm` views discard was **recovered from the
+  grammar** via `SValue_ne_nil` (every grammatical value consumes ≥ 1 byte) — not by reaching into
+  the parser's result subtype.
+
+New required whitespace/BOM facts, all proved: `skipWs_split`, `skipBom_split`, `isWs_IsWs`.
+No parser change, no grammar change, no witness carried. `#print axioms` → standard axioms only.
+
+**The live blocker is now C4 (completeness)** — deferred to the next phase per instruction.

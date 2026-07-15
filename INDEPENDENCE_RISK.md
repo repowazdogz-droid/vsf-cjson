@@ -143,3 +143,39 @@ already existed in v1.0.1). Architecture 2 (a proof-only execution relation) was
 **Verdict: the parser → grammar → theorem separation is intact. No parser definition was
 changed; no grammar definition was changed.** `Risk 2` (carrying the witness in the parser's
 return type) remains **rejected and unused** — and is now also **unnecessary for strings**.
+
+
+---
+
+## Risk 4 — structural soundness + C2: **NO RISK TAKEN** (views only, no new definitions)
+
+`struct_sound` and `parseDoc_sound` (C2) were proved on **2026-07-15** using the plain-Option
+views `pv`/`pe`/`pm` from the released `Cjson.Proofs.RoundTrip` — which merely `.map Subtype.val`
+over the real parser — plus new theorems and bridge lemmas. Architecture 1 (a strengthened
+length-staged induction) worked; architectures 2–4 were not needed.
+
+### Independence test, answered as required
+
+> **Does anything introduced merely describe an execution that already occurred?**
+> No new parser and no new grammar were introduced. `pv`/`pe`/`pm` are the released views; the new
+> content is theorems *about* them and helper lemmas about `skipWs`/`skipBom`.
+
+> **Is acceptance/value meaning still supplied by the independent grammar?**
+> Yes. The conclusions are `SValue`/`SElems`/`SMembers`/`SDoc` — the relations from
+> `Cjson/Spec/Grammar.lean`, unchanged, none mentioning the parser.
+
+> **Could a defective parser satisfy the relation while violating the grammar?**
+> No. The proof genuinely converts parser facts into grammar derivations at every node: the
+> dispatch gate into `SValue.num`'s `c = 45 ∨ isDigitB c` premise; `skipWs`'s dropped bytes into
+> `Ws` blocks; `scanNumber`/`parseStrBody` executions into `SNumTok`/`SChars` via the already-proved
+> component soundness. A parser that accepted, say, `[1 2]` (space-separated, no comma) could not
+> satisfy element soundness, because `SElems` has no such production.
+
+> **Is the final implication substantive, not `rfl`/projection?**
+> Substantive. C2's value witness is built by a genuine structural induction (`struct_sound`,
+> ~250 lines), not read off a subtype. The strict-decrease measure is even *re-derived from the
+> grammar* (`SValue_ne_nil`) rather than taken from the parser — the opposite of carrying a witness
+> in the parser.
+
+**Verdict: parser → grammar → theorem intact. No parser or grammar definition changed; nothing
+carries a witness.** Risk 2 (return-type witness) remains rejected and unused.
