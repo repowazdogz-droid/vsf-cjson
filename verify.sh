@@ -86,11 +86,24 @@ python3 harness/check_axioms.py | sed 's/^/  /' || { fail "axiom verification"; 
 pass "every attested declaration depends only on the allow-listed axioms"
 
 step "7. Banned-construct scan (belt and braces; NOT the primary gate)"
-if grep -rn --include='*.lean' -E "\bsorry\b|\badmit\b|native_decide|@\[extern\]" lean/Cjson lean/Main.lean \
-     | grep -v "banned\|@attested" ; then
-  fail "banned construct in source"; die
-fi
-pass "no sorry / admit / native_decide / extern in source"
+# Comment-aware. The authoritative sorry/axiom gates are 5 (build-output scan) and 6
+# (#print axioms → sorryAx). This secondary scan strips Lean comments (`/- … -/` blocks and
+# `--` to end-of-line) BEFORE matching, so prose such as "Zero `sorry`" in a module docstring
+# is not a false positive, while a real construct in code position is still caught. Block
+# comments are blanked line-for-line so reported line numbers stay accurate.
+BANNED=$(python3 - <<'PY'
+import re, glob
+files = sorted(glob.glob("lean/Cjson/**/*.lean", recursive=True)) + ["lean/Main.lean"]
+pat = re.compile(r"\bsorry\b|\badmit\b|native_decide|@\[extern\]")
+for f in files:
+    src = re.sub(r"/-.*?-/", lambda m: "\n" * m.group(0).count("\n"), open(f).read(), flags=re.S)
+    for i, line in enumerate(src.split("\n"), 1):
+        if pat.search(line.split("--", 1)[0]):
+            print(f"{f}:{i}: {line.strip()}")
+PY
+)
+if [ -n "$BANNED" ]; then printf '%s\n' "$BANNED" | sed 's/^/    /'; fail "banned construct in source"; die; fi
+pass "no sorry / admit / native_decide / extern in source (comments stripped)"
 
 step "8. Coverage manifest"
 python3 harness/check_manifest.py | sed 's/^/  /' || { fail "manifest"; die; }

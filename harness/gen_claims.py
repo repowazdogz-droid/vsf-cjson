@@ -23,8 +23,13 @@ y = [r for r in suite if r["kind"] == "y"]
 n = [r for r in suite if r["kind"] == "n"]
 fc = fuzz["counts"]
 
-lean_files = sorted(glob.glob(str(ROOT / "lean/Cjson/**/*.lean"), recursive=True)) + \
-             [str(ROOT / "lean/Main.lean")]
+# RELEASED artifact only. `lean_lines`/`theorem_count` describe the v1.0.1 released parser
+# (documented in README/PAPER/etc.), NOT the separate GAP-2 research chain under Cjson/Spec/,
+# which is sized independently in ADEQUACY_SUMMARY.md and gated by gap2_manifest.json. Excluding
+# `Cjson/Spec` (the aggregator and the subtree) is behaviour-identical to v1.0.1, where no spec
+# chain existed. Mirrors the released-only scoping in check_manifest.py.
+lean_files = sorted(f for f in glob.glob(str(ROOT / "lean/Cjson/**/*.lean"), recursive=True)
+                    if "Cjson/Spec" not in f) + [str(ROOT / "lean/Main.lean")]
 lean_lines = sum(len(open(f).readlines()) for f in lean_files)
 theorem_count = sum(
     1 for f in lean_files for ln in open(f)
