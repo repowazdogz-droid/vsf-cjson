@@ -399,3 +399,22 @@ released; v1.0.1 is untouched.
   `scanSign_complete` / digit bridge (`Digits_eq_digitBytes`, `Digits_lt10`)** — each converse scanner
   consumes exactly its grammatical piece given the appropriate tail condition.
   *These do NOT establish the scanners reject anything*; they are one-directional (grammar → scan).
+
+* **`parseStrBody_complete`** — `SChars body v → ∀ rest, parseStrBody (body ++ 34 :: rest) = some (v, rest)`.
+  For every grammatical string body (an *arbitrary* `SChars` spelling — escaped `\/` and unescaped
+  `/`, mixed-case `\uXXXX`, valid surrogate pairs, raw bytes ≥ 0x80 with no UTF-8 validation per
+  SPEC §S1.3 — NOT the canonical rendering only), the released parser is forced into the branch the
+  grammar dictates and returns the grammar-decoded `v`, leaving `rest`. Direct induction on
+  `SChars.rec`; reuses the released reverse escape equations (`psb_esc34…psb_esc116`,
+  `parseStrBody_other`) and the StrSound bridge `enc_eq`; adds `hex4_complete` and the reverse
+  surrogate-range lemmas.
+  *This theorem does NOT establish that the parser REJECTS non-grammatical bodies* (it is
+  one-directional, grammar → parse), *does NOT establish UTF-8 validity of the raw bytes* (the
+  grammar, like the parser, passes bytes ≥ 0x80 through unexamined), *and says nothing about the
+  opening quote* (consumed by `parseValue`, not here).
+
+* **`hex4_complete` / surrogate-range converses (`isHigh_true`/`isLow_true`/`isLow_false_of_high`/
+  `isLow_false_of_not`/`isHigh_false_of_not`)** — the reverse of the StrSound bridges: valid hex
+  digits make `hex4` succeed with `hex4v`, and the grammar's surrogate ranges pin the parser's
+  boolean tests. *These do NOT establish the parser rejects invalid hex* (that is D-STR-1, a
+  soundness-side/oracle fact).

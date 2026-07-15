@@ -252,3 +252,19 @@ the unchanged `SNumTok`, and no grammar/parser definition was touched.
 Remaining for C4: `parseStrBody_complete` (the other leaf) and the structural mutual induction
 (assembly lemmas already exist in v1.0.1). C4 is expected to close via the architecture in §8–10
 unchanged, now that its hardest leaf is proved.
+
+### C4 leaf 2 (2026-07-15): `parseStrBody_complete` PROVED
+
+Both hard C4 leaves are now done. `parseStrBody_complete : SChars body v → ∀ rest,
+parseStrBody (body ++ 34 :: rest) = some (v, rest)`, for arbitrary grammatical spellings
+(grammar unmodified). `#print axioms` → `[propext, Classical.choice, Quot.sound]`. Zero `sorry`.
+Direct induction on `SChars.rec`, covering all 5 constructors (nil / plain / esc / uni / pair);
+reuses the released reverse escape equations and `enc_eq`, adds `hex4_complete` + surrogate-range
+converses. Independence confirmed concretely: escaped `\/` (via `SChars.esc`) and unescaped `/`
+(via `SChars.plain`) both decode to `/` and both go through the *same* theorem — the grammar's
+spelling-freedom is preserved, not collapsed to the serializer's canonical form.
+
+**Both C4 leaves (`scanNumber_complete`, `parseStrBody_complete`) are proved.** The remaining C4
+work is the structural mutual induction lifting these (plus the literal/array/object cases) to
+`parseValue`/`parseDoc` — whose assembly lemmas already exist in v1.0.1 (`pv_arr_cons`, `pe_cons`,
+`pm_cons`, …). The §8 architecture remains unchanged; full structural completeness can now begin.
