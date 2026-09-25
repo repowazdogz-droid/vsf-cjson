@@ -149,7 +149,7 @@ and the emitted bytes are **identical**.
 
 ```
 oracle/         cJSON fb16e5c, UNMODIFIED + a 62-line CLI wrapper
-lean/           Lean 4.32.0 lake project — 2,229 lines, 90 theorems, 0 sorry
+lean/           Lean 4.32.0 lake project — 2,240 lines, 90 theorems, 0 sorry <!-- claim:lean_lines=2240 --><!-- claim:theorem_count=90 -->
 harness/        run_suite.py · fuzz.py · idempotence.py · diff.py
 figures/        SVGs; verify.sh regenerates them into a temp dir and byte-compares
 verify.sh       regenerates and re-checks every claim in this repo
