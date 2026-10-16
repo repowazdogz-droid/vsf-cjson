@@ -8,10 +8,9 @@ Differential testing against unmodified cJSON found zero port errors in this Lea
 ## Try it
 
 Needs a C compiler and [elan](https://github.com/leanprover/elan). From a clean clone, with
-Lean v4.32.0 already installed by elan, this took 6.5 to 8.2 seconds (two runs, bash and zsh,
-Apple M4 Max). On a
-machine without that toolchain, the `lake build` line first downloads it, and the block will
-take longer than 30 seconds. The `cc` line and the `cJSON:` rows need only the C compiler.
+Lean v4.32.0 already installed by elan, this took 6.5 to 8.4 seconds (three runs, bash and
+zsh, Apple M4 Max). On a machine without that toolchain, the `lake build` line first downloads
+it, and the block will take longer than 30 seconds. The `cc` line and the `cJSON:` rows need only the C compiler.
 
 ```bash
 git clone https://github.com/repowazdogz-droid/vsf-cjson && cd vsf-cjson
