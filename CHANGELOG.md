@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## v1.0.1 — verification-harness repair
+## v1.0.1 (2026-07-14): verification-harness repair
 
 **The mathematics is unchanged. The evidence pipeline was broken and has been rebuilt.**
 

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+type: software
+title: vsf-cjson
+abstract: "Differential testing against unmodified cJSON found zero port errors in this Lean 4 port over JSONTestSuite (318 files) and 120,000 fuzzed inputs."
+authors:
+  - family-names: Smith
+    given-names: Warren
+version: 1.0.1
+date-released: "2026-07-14"
+license: MIT
+repository-code: "https://github.com/repowazdogz-droid/vsf-cjson"
+keywords:
+  - lean4
+  - formal-verification
+  - differential-testing
+  - json
+  - cjson
