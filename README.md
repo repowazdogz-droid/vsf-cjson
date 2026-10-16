@@ -1,11 +1,82 @@
-# Verified Software Factory — cJSON → Lean 4
+# vsf-cjson: cJSON ported to Lean 4, with the C library as oracle
+
+[![verify](https://github.com/repowazdogz-droid/vsf-cjson/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/repowazdogz-droid/vsf-cjson/actions/workflows/verify.yml)
+[![release](https://img.shields.io/github/v/release/repowazdogz-droid/vsf-cjson)](https://github.com/repowazdogz-droid/vsf-cjson/releases/latest)
+
+Differential testing against unmodified cJSON found zero port errors in this Lean 4 port over JSONTestSuite (318 files) and 120,000 fuzzed inputs. <!-- claim:suite_files=318 --><!-- claim:fuzz_n=120000 -->
+
+## Try it
+
+Needs a C compiler and [elan](https://github.com/leanprover/elan). From a clean clone, with
+Lean v4.32.0 already installed by elan, this took 6.5 to 8.4 seconds (three runs, bash and
+zsh, Apple M4 Max). On a machine without that toolchain, the `lake build` line first downloads
+it, and the block will take longer than 30 seconds. The `cc` line and the `cJSON:` rows need only the C compiler.
+
+```bash
+git clone https://github.com/repowazdogz-droid/vsf-cjson && cd vsf-cjson
+cc -O2 -std=c99 -o oracle/cjson_oracle oracle/wrapper.c oracle/cJSON.c -lm
+(cd lean && lake build cjson)    # builds the port and its proof modules; downloads Lean v4.32.0 if missing
+for s in '1e400' '0.30000000000000004' '"\uZZZZ"'; do
+  printf '\n%s\n' "$s"
+  printf '  cJSON: '; printf '%s' "$s" | ./oracle/cjson_oracle;        printf '  (exit %s)\n' $?
+  printf '  Lean : '; printf '%s' "$s" | ./lean/.lake/build/bin/cjson; printf '  (exit %s)\n' $?
+done
+```
+
+The build prints linter warnings (unused `simp` arguments, one unused variable) and ends with
+`Build completed successfully`. Expected output after that (exit 0 = accepted, exit 1 = rejected):
+
+```
+1e400
+  cJSON: null  (exit 0)
+  Lean : 1e400  (exit 0)
+
+0.30000000000000004
+  cJSON: 0.3  (exit 0)
+  Lean : 0.30000000000000004  (exit 0)
+
+"\uZZZZ"
+  cJSON: ""  (exit 0)
+  Lean :   (exit 1)
+```
+
+cJSON turns a number into `null`, prints a different IEEE double, and accepts an invalid
+escape. The port keeps both numbers and rejects the escape. These are three of the four cJSON
+bugs listed under OBSERVED below. The build compiles the proofs, but a build alone does not
+reject `sorry` or a custom axiom, and the block re-runs no measurement. `./verify.sh --quick`
+(about 4 minutes) runs the `sorry` scan and the axiom gate; `./verify.sh` (16 gates, about
+20 minutes) regenerates every number in this README.
+
+## What this does not show
+
+* **Which inputs the parser accepts (GAP-2).** No theorem here states it, although it is most
+  of what [`SPEC.md`](SPEC.md) specifies. Accept/reject agreement with cJSON is measured
+  (317/318 JSONTestSuite files, 119,999/120,000 fuzzed inputs), not proved. A differential test
+  is blind by construction to bugs the port and cJSON share: both accept trailing garbage, both
+  treat NUL as whitespace, both skip UTF-8 validation. This artifact should **not** be
+  described as "a verified JSON parser" without that qualification.
+* **That the round-trip theorems constrain the accept-set.** T1 and T3 cover the image of
+  `serialize`. A parser that accepted every byte string and returned `null` would satisfy them
+  equally well.
+* **That the binary is the verified object (GAP-EXTRACT).** The theorems are about Lean
+  functions. The executable comes from Lean's compiler and runtime, which are unverified. The
+  only bridge is a 20,318-input idempotence run with 0 violations.
+* **Equivalence with cJSON.** "Zero port errors" is a count over the inputs tested, under the
+  classification rules in [`harness/classify.py`](harness/classify.py). Those rules encode
+  human judgement and say so.
+* **Safe number output (GAP-3).** There is no exponent bound: the exact-number model can emit
+  values that most JSON consumers reject. This is the one finding against the port.
+
+Full statements, and what each would take to close: [`GAPS.md`](GAPS.md),
+[`CLAIMS.md`](CLAIMS.md) §4.
+
+---
 
 **v1.0.1** · Lean leanprover/lean4:v4.32.0 (Std only, no Mathlib) <!-- claim:lean_toolchain=leanprover/lean4:v4.32.0 -->
 · oracle: [cJSON](https://github.com/DaveGamble/cJSON) @ `fb16e5cf358798aabb049655975cde8427101056`, **unmodified** <!-- claim:oracle_commit=fb16e5cf358798aabb049655975cde8427101056 -->
 · corpus: [JSONTestSuite](https://github.com/nst/JSONTestSuite) @ `1ef36fa01286573e846ac449e8683f8833c5b26a` (pinned) <!-- claim:jsontestsuite_commit=1ef36fa01286573e846ac449e8683f8833c5b26a -->
 
-An instrumented experiment, not a product. The question is not *"can we build a verified JSON
-parser"* — people have. The question is:
+This is an instrumented experiment. Verified JSON parsers already exist; the question here is:
 
 > **How far can an AI agent translate a real C library into Lean while preserving semantics,
 > and where does the process actually break?**
@@ -19,12 +90,12 @@ difference between it and the Lean port is recorded as a **finding**, not patche
 ./harness/mutation_tests.sh    # ~15 min. Proves every gate actually FIRES (20 attacks).
 ```
 
-**Read this before trusting any green check here.** `lake build` does **not** reject `sorry` —
+**Read this before trusting any green check here.** `lake build` does **not** reject `sorry`:
 Lean emits a warning, not an error. The gates that reject it are (a) a scan of a *fresh* build's
 output for ``declaration uses `sorry` `` and (b) the **axiom gate**, which parses
 `#print axioms` for all 11 attested declarations and compares the axiom *set* against an
 allow-list, catching `sorryAx` and any custom axiom structurally. v1.0.0 shipped an axiom gate
-that **could not fire** — `harness/mutation_tests.sh` exists so that never goes unnoticed
+that **could not fire**. `harness/mutation_tests.sh` exists so that never goes unnoticed
 again: it injects axioms, `sorry`s, falsified numbers, tampered figures and manifest drift, and
 requires every gate to fail.
 
@@ -33,15 +104,22 @@ requires every gate to fail.
 ## The one-paragraph result
 
 The port is **2,240 lines of Lean, 90 theorems, zero `sorry`, zero project axioms**. <!-- claim:lean_lines=2240 --><!-- claim:theorem_count=90 -->
-We prove totality (with *no fuel parameter*), a round-trip theorem, a canonicity invariant, and
-— unconditionally — that anything the parser produces re-parses to itself. Differential testing
-over JSONTestSuite (318 files) and 120,000 fuzzed inputs measured **PORT_WRONG = 0** — zero cases <!-- claim:suite_files=318 --><!-- claim:fuzz_n=120000 --><!-- claim:fuzz_port_wrong=0 -->
-where the Lean port is wrong — and found **four genuine bugs in cJSON**.
+We prove totality (with *no fuel parameter*), a round-trip theorem, a canonicity invariant, and,
+unconditionally, that anything the parser produces re-parses to itself. Differential testing
+over JSONTestSuite (318 files) and 120,000 fuzzed inputs measured **PORT_WRONG = 0** (zero cases <!-- claim:suite_files=318 --><!-- claim:fuzz_n=120000 --><!-- claim:fuzz_port_wrong=0 -->
+where the Lean port is wrong) and found **four genuine bugs in cJSON**.
 
-But the headline finding is not a theorem. It is that **cJSON's round-trip is lossy by its own
+The theorem count is reproducible with the same rule `harness/gen_claims.py` uses (top-level
+`theorem` declarations; the sources contain no `lemma`):
+
+```bash
+cat lean/Cjson/*.lean lean/Cjson/*/*.lean lean/Main.lean | grep -cE '^(@\[simp\] )?theorem '   # 90
+```
+
+The headline finding is not a theorem, though. **cJSON's round-trip is lossy by its own
 evident intent**, which means the property we were asked to prove in Phase 4 was *false of the
 target*. We found that in the specification phase. Had we found it in the proof phase, the
-locally-rational move — weaken the theorem until it compiles — would have produced a green
+locally-rational move (weaken the theorem until it compiles) would have produced a green
 build that certified nothing.
 
 **And: we prove nothing about which inputs the parser accepts.** That is most of what our own
@@ -56,7 +134,7 @@ Every claim in this repo carries exactly one tag. Nothing blurs them.
 
 | tag | meaning | where |
 |---|---|---|
-| **PROVEN** | kernel-checked in Lean. `lake build` catches a broken *proof*; the **axiom gate** (`harness/check_axioms.py`) is what rejects `sorry` and custom axioms — see below | [`CLAIMS.md`](CLAIMS.md) §1 |
+| **PROVEN** | kernel-checked in Lean. `lake build` catches a broken *proof*; the **axiom gate** (`harness/check_axioms.py`) is what rejects `sorry` and custom axioms (see above) | [`CLAIMS.md`](CLAIMS.md) §1 |
 | **MEASURED** | produced by a script in `harness/`, deterministic seed | [`CLAIMS.md`](CLAIMS.md) §2 |
 | **OBSERVED** | fact about the C, established by probing the compiled oracle | [`CLAIMS.md`](CLAIMS.md) §3 |
 | **NOT PROVEN** | explicitly outside the proofs' reach | [`CLAIMS.md`](CLAIMS.md) §4, [`GAPS.md`](GAPS.md) |
@@ -68,9 +146,9 @@ Every claim in this repo carries exactly one tag. Nothing blurs them.
 | **T0** | `parseValue`/`parseElems`/`parseMembers` are total. **No fuel parameter exists.** |
 | **T1** | `Canonical v → jdepth v ≤ 1000 → parseDoc (serialize v) = some v` |
 | **T2** | `parseDoc s = some v → Canonical v ∧ jdepth v ≤ 1000` (carried in the parser's *type*) |
-| **T3** | `parseDoc s = some v → parseDoc (serialize v) = some v` — **unconditional** |
+| **T3** | `parseDoc s = some v → parseDoc (serialize v) = some v`, **unconditional** |
 
-Axioms: `propext`, `Classical.choice`, `Quot.sound` — Lean's standard three, no project axioms.
+Axioms: `propext`, `Classical.choice`, `Quot.sound`. These are Lean's standard three; there are no project axioms.
 
 ### MEASURED
 
@@ -84,23 +162,23 @@ Axioms: `propext`, `Classical.choice`, `Quot.sound` — Lean's standard three, n
 | Fuzz: **UNCLASSIFIED** (a finding if nonzero) | **0** | <!-- claim:fuzz_unclassified=0 --> |
 | Idempotence cross-check, 20,318 inputs | **0 violations** | <!-- claim:idem_checked=20318 --><!-- claim:idem_violations=0 --> |
 
-### OBSERVED — four genuine cJSON bugs
+### OBSERVED: four genuine cJSON bugs
 
 | | |
 |---|---|
 | `1e400` → `null` | a number silently changes its JSON **type** (`strtod`'s `errno` never checked) |
-| `0.30000000000000004` → `0.3` | a **different IEEE double** — `compare_double` uses a ~1-ULP tolerance |
-| `"\uZZZZ"` → `""` | **invalid input accepted as valid** — `parse_hex4` cannot distinguish `0000` from garbage |
+| `0.30000000000000004` → `0.3` | a **different IEEE double**: `compare_double` uses a ~1-ULP tolerance |
+| `"\uZZZZ"` → `""` | **invalid input accepted as valid**: `parse_hex4` cannot distinguish `0000` from garbage |
 | `{"foo\0bar":42}` → `{"foo":42}` | content **silently discarded** at an embedded NUL |
 
 ### NOT PROVEN
 
-* **GAP-2** — soundness against the SPEC grammar. *No theorem here says which inputs the parser
+* **GAP-2**: soundness against the SPEC grammar. *No theorem here says which inputs the parser
   accepts.* The accept-set is measured, and the differential test is blind by construction to
   bugs the port and cJSON *share*.
-* **GAP-EXTRACT** — the compiled binary is not the verified object (Lean's compiler/runtime are
+* **GAP-EXTRACT**: the compiled binary is not the verified object (Lean's compiler/runtime are
   unverified).
-* **GAP-3** — no exponent bound; exact numbers can emit output most JSON consumers choke on.
+* **GAP-3**: no exponent bound; exact numbers can emit output most JSON consumers choke on.
   *The one finding against our own port.*
 
 ---
@@ -112,8 +190,8 @@ Not in the mathematics. Every real proof obligation went through once stated cor
 **Our instruments broke three times.** Bash's `printf` silently ate `\uXXXX` in our probe
 scripts (killing three early "findings"); our fuzz classifier conflated `json.loads("null") →
 None` with parse failure (mis-flagging 22 real divergences); Python's `Decimal` then overflowed
-on a huge exponent. In an AI-driven pipeline the harness is code too — written with the same
-fluency and the same overconfidence — and it is **not** protected by a kernel.
+on a huge exponent. In an AI-driven pipeline the harness is code too, written with the same
+fluency and the same overconfidence, and it is **not** protected by a kernel.
 
 **Lean's ergonomics cost more than its logic.** Seven documented failures, several with error
 messages pointing nowhere near the cause. The sharpest: `omega` silently refuses to unfold
@@ -135,7 +213,7 @@ abbrev Res (α : Type) (P : α → Prop) (s : List UInt8) : Type :=
 ```
 
 That one device gave us, in sequence: fuel-free **totality** (the decrease is in scope at each
-call site), then **canonicity**, then the **depth bound** — each discharged at ~8 construction
+call site), then **canonicity**, then the **depth bound**, each discharged at ~8 construction
 sites. The alternative, `parseValue.induct` (the induction principle Lean generates for the
 WF-recursive mutual block), has **26 minor premises** and we abandoned it. The type-strengthening
 route took about an hour.
@@ -149,22 +227,24 @@ and the emitted bytes are **identical**.
 
 ```
 oracle/         cJSON fb16e5c, UNMODIFIED + a 62-line CLI wrapper
-lean/           Lean 4.32.0 lake project — 2,240 lines, 90 theorems, 0 sorry <!-- claim:lean_lines=2240 --><!-- claim:theorem_count=90 -->
+lean/           Lean 4.32.0 lake project: 2,240 lines, 90 theorems, 0 sorry <!-- claim:lean_lines=2240 --><!-- claim:theorem_count=90 -->
 harness/        run_suite.py · fuzz.py · idempotence.py · diff.py
 figures/        SVGs; verify.sh regenerates them into a temp dir and byte-compares
 verify.sh       regenerates and re-checks every claim in this repo
 
 PAPER.md        the write-up (6–10pp)
 CLAIMS.md       every claim, tagged PROVEN / MEASURED / OBSERVED / NOT PROVEN
-SPEC.md         the contract — written BEFORE any Lean; every clause oracle-probed
+SPEC.md         the contract, written BEFORE any Lean; every clause oracle-probed
 DIVERGENCES.md  every divergence, classified (a) port wrong / (b) cJSON bug / (c) ambiguity / (d) deliberate
 GAPS.md         what this artifact does NOT establish
 LEDGER.md       preserved / changed / assumed / unproved
 REPORT.md       wall-clock narrative of failures and recoveries
+CHANGELOG.md    release history
+CITATION.cff    how to cite this repository
 ```
 
-Both binaries share an identical CLI contract — bytes on stdin, serialization on stdout, exit
-code distinguishes accept/reject — so they are drop-in comparable:
+Both binaries share an identical CLI contract (bytes on stdin, serialization on stdout, exit
+code distinguishes accept/reject), so they are drop-in comparable:
 
 ```bash
 printf '0.30000000000000004' | ./oracle/cjson_oracle          # 0.3          <- cJSON bug
@@ -173,5 +253,5 @@ printf '0.30000000000000004' | ./lean/.lake/build/bin/cjson   # 0.30000000000000
 
 ## Licence
 
-cJSON in `oracle/` is MIT (Dave Gamble and contributors) — see `oracle/LICENSE`, unmodified.
-Everything else in this repository: MIT.
+cJSON in `oracle/` is MIT (Dave Gamble and contributors): see `oracle/LICENSE`, unmodified.
+Everything else in this repository: MIT, see [`LICENSE`](LICENSE).
