@@ -8,14 +8,15 @@ Differential testing against unmodified cJSON found zero port errors in this Lea
 ## Try it
 
 Needs a C compiler and [elan](https://github.com/leanprover/elan). From a clean clone, with
-Lean v4.32.0 already installed by elan, this took about 11 seconds on an Apple M4 Max. On a
+Lean v4.32.0 already installed by elan, this took 6.5 to 8.2 seconds (two runs, bash and zsh,
+Apple M4 Max). On a
 machine without that toolchain, the `lake build` line first downloads it, and the block will
 take longer than 30 seconds. The `cc` line and the `cJSON:` rows need only the C compiler.
 
 ```bash
 git clone https://github.com/repowazdogz-droid/vsf-cjson && cd vsf-cjson
 cc -O2 -std=c99 -o oracle/cjson_oracle oracle/wrapper.c oracle/cJSON.c -lm
-(cd lean && lake build cjson)    # builds the port's executable; downloads Lean v4.32.0 if missing
+(cd lean && lake build cjson)    # builds the port and its proof modules; downloads Lean v4.32.0 if missing
 for s in '1e400' '0.30000000000000004' '"\uZZZZ"'; do
   printf '\n%s\n' "$s"
   printf '  cJSON: '; printf '%s' "$s" | ./oracle/cjson_oracle;        printf '  (exit %s)\n' $?
@@ -23,7 +24,8 @@ for s in '1e400' '0.30000000000000004' '"\uZZZZ"'; do
 done
 ```
 
-Expected output after the build lines (exit 0 = accepted, exit 1 = rejected):
+The build prints linter warnings (unused `simp` arguments, one unused variable) and ends with
+`Build completed successfully`. Expected output after that (exit 0 = accepted, exit 1 = rejected):
 
 ```
 1e400
@@ -41,9 +43,10 @@ Expected output after the build lines (exit 0 = accepted, exit 1 = rejected):
 
 cJSON turns a number into `null`, prints a different IEEE double, and accepts an invalid
 escape. The port keeps both numbers and rejects the escape. These are three of the four cJSON
-bugs listed under OBSERVED below. This block does not check the proofs and does not re-run any
-measurement: `./verify.sh --quick` (about 4 minutes) checks the proofs and axioms, and
-`./verify.sh` (16 gates, about 20 minutes) regenerates every number in this README.
+bugs listed under OBSERVED below. The build compiles the proofs, but a build alone does not
+reject `sorry` or a custom axiom, and the block re-runs no measurement. `./verify.sh --quick`
+(about 4 minutes) runs the `sorry` scan and the axiom gate; `./verify.sh` (16 gates, about
+20 minutes) regenerates every number in this README.
 
 ## What this does not show
 
